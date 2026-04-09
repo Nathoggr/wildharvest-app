@@ -1,8 +1,9 @@
 {
+  "id": "/wildharvest-app/index.html",
   "name": "WildHarvest",
   "short_name": "WildHarvest",
   "description": "Personal wild foraging map and harvest calendar",
-  "start_url": "./index.html",
+  "start_url": "/wildharvest-app/index.html",
   "display": "standalone",
   "background_color": "#2d4a1e",
   "theme_color": "#2d4a1e",
@@ -12,13 +13,34 @@
       "src": "icon-192.png",
       "sizes": "192x192",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
     },
     {
       "src": "icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "icon-512-maskable.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "screenshot-mobile.png",
+      "sizes": "390x844",
+      "type": "image/png",
+      "label": "WildHarvest map with foraging pins"
+    },
+    {
+      "src": "screenshot-wide.png",
+      "sizes": "1280x800",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "WildHarvest on desktop with calendar and map"
     }
   ]
 }
