@@ -1,0 +1,1409 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>WildHarvest</title>
+<meta name="description" content="Personal wild foraging map and harvest calendar">
+<meta name="theme-color" content="#2d4a1e">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="WildHarvest">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,500;0,700;1,500&family=Lato:wght@300;400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<style>
+:root {
+  --forest: #2d4a1e;
+  --forest-mid: #3d6229;
+  --forest-light: #5a8a3a;
+  --bark: #6b4c2a;
+  --bark-light: #9a7550;
+  --cream: #f5f0e8;
+  --parchment: #ede5d0;
+  --moss: #8aac5a;
+  --berry: #8b2252;
+  --berry-light: #c4366e;
+  --mushroom: #b87333;
+  --fern: #4a7c3f;
+  --ink: #1a2810;
+  --mist: rgba(45,74,30,0.08);
+  --shadow: 0 4px 24px rgba(26,40,16,0.18);
+  --shadow-sm: 0 2px 8px rgba(26,40,16,0.12);
+  --radius: 12px;
+  --radius-lg: 20px;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+body {
+  font-family: 'Lato', sans-serif;
+  background: var(--cream);
+  color: var(--ink);
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* ── HEADER ── */
+#header {
+  background: var(--forest);
+  color: var(--cream);
+  padding: 12px 16px 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  z-index: 100;
+  position: relative;
+  flex-shrink: 0;
+}
+
+#header h1 {
+  font-family: 'Playfair Display', serif;
+  font-size: 1.45rem;
+  letter-spacing: 0.01em;
+  font-weight: 700;
+  line-height: 1;
+}
+
+#header h1 span {
+  color: var(--moss);
+  font-style: italic;
+}
+
+#sync-btn {
+  background: rgba(255,255,255,0.12);
+  border: 1px solid rgba(255,255,255,0.2);
+  color: var(--cream);
+  border-radius: 8px;
+  padding: 6px 12px;
+  font-size: 0.78rem;
+  font-family: 'Lato', sans-serif;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: background 0.2s;
+  white-space: nowrap;
+}
+#sync-btn:active { background: rgba(255,255,255,0.22); }
+#sync-btn.syncing { opacity: 0.6; pointer-events: none; }
+
+#sync-status {
+  font-size: 0.68rem;
+  color: var(--moss);
+  white-space: nowrap;
+}
+
+/* ── TABS ── */
+#tabs {
+  display: flex;
+  background: var(--forest);
+  border-top: 1px solid rgba(255,255,255,0.08);
+  flex-shrink: 0;
+}
+
+.tab {
+  flex: 1;
+  padding: 9px 4px;
+  color: rgba(255,255,255,0.5);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  text-align: center;
+  cursor: pointer;
+  border-bottom: 3px solid transparent;
+  transition: all 0.2s;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.tab.active {
+  color: var(--moss);
+  border-bottom-color: var(--moss);
+}
+
+.tab-icon { font-size: 1.1rem; }
+
+/* ── PANELS ── */
+#main {
+  flex: 1;
+  overflow: hidden;
+  position: relative;
+}
+
+.panel {
+  position: absolute;
+  inset: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  display: none;
+}
+.panel.active { display: block; }
+
+/* ── MAP PANEL ── */
+#map-panel { overflow: hidden; }
+#map { width: 100%; height: 100%; }
+
+#map-controls {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 500;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.map-btn {
+  width: 42px;
+  height: 42px;
+  border-radius: 10px;
+  background: var(--cream);
+  border: 2px solid var(--forest);
+  color: var(--forest);
+  font-size: 1.15rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: var(--shadow-sm);
+  transition: all 0.15s;
+}
+.map-btn:active { transform: scale(0.93); }
+.map-btn.adding {
+  background: var(--berry);
+  border-color: var(--berry);
+  color: white;
+  animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+  0%,100% { box-shadow: 0 0 0 0 rgba(139,34,82,0.4); }
+  50% { box-shadow: 0 0 0 8px rgba(139,34,82,0); }
+}
+
+#add-hint {
+  position: absolute;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--berry);
+  color: white;
+  border-radius: 20px;
+  padding: 8px 18px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  z-index: 500;
+  display: none;
+  pointer-events: none;
+  white-space: nowrap;
+  box-shadow: var(--shadow);
+}
+#add-hint.visible { display: block; }
+
+/* ── CALENDAR PANEL ── */
+#calendar-panel {
+  padding: 16px;
+  background: var(--parchment);
+}
+
+.month-strip {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+  margin-bottom: 16px;
+  scrollbar-width: none;
+}
+.month-strip::-webkit-scrollbar { display: none; }
+
+.month-chip {
+  flex-shrink: 0;
+  padding: 6px 14px;
+  border-radius: 20px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  background: white;
+  border: 2px solid var(--parchment);
+  color: var(--bark);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.month-chip.active {
+  background: var(--forest);
+  color: var(--cream);
+  border-color: var(--forest);
+}
+
+.cal-section-title {
+  font-family: 'Playfair Display', serif;
+  font-size: 1.1rem;
+  color: var(--forest);
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.harvest-card {
+  background: white;
+  border-radius: var(--radius);
+  padding: 13px 15px;
+  margin-bottom: 10px;
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  cursor: pointer;
+  border-left: 4px solid var(--moss);
+  transition: transform 0.15s;
+  position: relative;
+}
+.harvest-card:active { transform: scale(0.98); }
+.harvest-card.type-mushroom { border-left-color: var(--mushroom); }
+.harvest-card.type-berry { border-left-color: var(--berry-light); }
+.harvest-card.type-green { border-left-color: var(--fern); }
+.harvest-card.type-root { border-left-color: var(--bark); }
+.harvest-card.type-other { border-left-color: var(--bark-light); }
+
+.hc-icon { font-size: 1.6rem; flex-shrink: 0; line-height: 1; }
+.hc-body { flex: 1; min-width: 0; }
+.hc-name { font-weight: 700; font-size: 0.95rem; color: var(--ink); }
+.hc-months { font-size: 0.74rem; color: var(--bark-light); margin-top: 1px; }
+.hc-notes { font-size: 0.78rem; color: #555; margin-top: 4px; line-height: 1.4; }
+.hc-actions { display: flex; flex-direction: column; gap: 6px; }
+
+.icon-btn {
+  background: none; border: none; cursor: pointer;
+  font-size: 1rem; color: var(--bark-light);
+  padding: 3px; border-radius: 6px;
+  transition: color 0.15s;
+}
+.icon-btn:active { color: var(--forest); }
+.icon-btn.del:active { color: var(--berry); }
+
+.add-cal-btn {
+  width: 100%;
+  padding: 14px;
+  background: var(--forest);
+  color: var(--cream);
+  border: none;
+  border-radius: var(--radius);
+  font-family: 'Lato', sans-serif;
+  font-size: 0.9rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+  margin-top: 4px;
+  margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: background 0.2s;
+}
+.add-cal-btn:active { background: var(--forest-mid); }
+
+.export-btn {
+  width: 100%;
+  padding: 12px;
+  background: transparent;
+  color: var(--forest);
+  border: 2px solid var(--forest);
+  border-radius: var(--radius);
+  font-family: 'Lato', sans-serif;
+  font-size: 0.85rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-bottom: 20px;
+  transition: all 0.2s;
+}
+.export-btn:active { background: var(--mist); }
+
+.empty-state {
+  text-align: center;
+  padding: 30px 20px;
+  color: var(--bark-light);
+  font-style: italic;
+  font-size: 0.88rem;
+}
+
+/* ── SETTINGS PANEL ── */
+#settings-panel { padding: 16px; }
+
+.settings-section {
+  background: white;
+  border-radius: var(--radius-lg);
+  padding: 18px;
+  margin-bottom: 16px;
+  box-shadow: var(--shadow-sm);
+}
+
+.settings-section h3 {
+  font-family: 'Playfair Display', serif;
+  font-size: 1rem;
+  color: var(--forest);
+  margin-bottom: 4px;
+}
+
+.settings-section p {
+  font-size: 0.78rem;
+  color: #666;
+  margin-bottom: 14px;
+  line-height: 1.5;
+}
+
+.field-label {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--bark);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  margin-bottom: 5px;
+}
+
+.field-input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 2px solid var(--parchment);
+  border-radius: 8px;
+  font-family: 'Lato', sans-serif;
+  font-size: 0.88rem;
+  color: var(--ink);
+  background: var(--cream);
+  margin-bottom: 12px;
+  transition: border-color 0.2s;
+  -webkit-appearance: none;
+}
+.field-input:focus { outline: none; border-color: var(--forest); }
+
+.save-btn {
+  width: 100%;
+  padding: 12px;
+  background: var(--forest);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-family: 'Lato', sans-serif;
+  font-size: 0.88rem;
+  font-weight: 700;
+  cursor: pointer;
+  letter-spacing: 0.04em;
+  transition: background 0.2s;
+}
+.save-btn:active { background: var(--forest-mid); }
+
+.status-pill {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  margin-top: 8px;
+}
+.status-pill.ok { background: #e0f2e0; color: #2a6a2a; }
+.status-pill.err { background: #fde0e0; color: #8b2020; }
+.status-pill.none { background: #f0f0f0; color: #888; }
+
+/* ── MODAL ── */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(26,40,16,0.55);
+  backdrop-filter: blur(3px);
+  z-index: 1000;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s;
+}
+.modal-overlay.open {
+  opacity: 1;
+  pointer-events: all;
+}
+
+.modal {
+  background: var(--cream);
+  border-radius: 24px 24px 0 0;
+  padding: 20px 20px 36px;
+  width: 100%;
+  max-width: 480px;
+  max-height: 90dvh;
+  overflow-y: auto;
+  transform: translateY(40px);
+  transition: transform 0.3s cubic-bezier(.22,1,.36,1);
+}
+.modal-overlay.open .modal { transform: translateY(0); }
+
+.modal-handle {
+  width: 40px; height: 4px;
+  background: var(--bark-light);
+  border-radius: 2px;
+  margin: 0 auto 18px;
+  opacity: 0.4;
+}
+
+.modal h2 {
+  font-family: 'Playfair Display', serif;
+  font-size: 1.2rem;
+  color: var(--forest);
+  margin-bottom: 16px;
+}
+
+.month-checkboxes {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+  margin-bottom: 14px;
+}
+
+.month-check {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  cursor: pointer;
+}
+
+.month-check input { display: none; }
+
+.month-check-label {
+  width: 100%;
+  text-align: center;
+  padding: 7px 4px;
+  border-radius: 8px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  background: white;
+  border: 2px solid var(--parchment);
+  color: var(--bark);
+  cursor: pointer;
+  transition: all 0.15s;
+  letter-spacing: 0.04em;
+}
+
+.month-check input:checked + .month-check-label {
+  background: var(--forest);
+  color: white;
+  border-color: var(--forest);
+}
+
+.type-select-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  margin-bottom: 14px;
+}
+
+.type-chip {
+  padding: 8px 6px;
+  border-radius: 8px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-align: center;
+  cursor: pointer;
+  border: 2px solid var(--parchment);
+  background: white;
+  color: var(--bark);
+  transition: all 0.15s;
+}
+.type-chip.selected { border-color: var(--forest); background: var(--forest); color: white; }
+
+.modal-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.btn-primary {
+  flex: 1;
+  padding: 13px;
+  background: var(--forest);
+  color: white;
+  border: none;
+  border-radius: var(--radius);
+  font-family: 'Lato', sans-serif;
+  font-size: 0.9rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.btn-primary:active { background: var(--forest-mid); }
+
+.btn-secondary {
+  padding: 13px 18px;
+  background: transparent;
+  color: var(--bark);
+  border: 2px solid var(--parchment);
+  border-radius: var(--radius);
+  font-family: 'Lato', sans-serif;
+  font-size: 0.9rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.btn-danger {
+  flex: 1;
+  padding: 13px;
+  background: var(--berry);
+  color: white;
+  border: none;
+  border-radius: var(--radius);
+  font-family: 'Lato', sans-serif;
+  font-size: 0.9rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+/* photo preview */
+.photo-preview {
+  width: 100%;
+  max-height: 160px;
+  object-fit: cover;
+  border-radius: 10px;
+  margin-bottom: 10px;
+  display: none;
+}
+.photo-preview.visible { display: block; }
+
+.file-upload-area {
+  border: 2px dashed var(--bark-light);
+  border-radius: 10px;
+  padding: 16px;
+  text-align: center;
+  color: var(--bark-light);
+  font-size: 0.82rem;
+  cursor: pointer;
+  margin-bottom: 12px;
+  transition: border-color 0.2s;
+}
+.file-upload-area:hover { border-color: var(--forest); }
+.file-upload-area input { display: none; }
+
+/* leaflet pin popup */
+.pin-popup { font-family: 'Lato', sans-serif; min-width: 180px; }
+.pin-popup h4 { font-family: 'Playfair Display', serif; color: var(--forest); margin-bottom: 4px; font-size: 1rem; }
+.pin-popup .pp-type { font-size: 0.73rem; color: var(--bark-light); font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px; }
+.pin-popup .pp-notes { font-size: 0.82rem; color: #444; margin-bottom: 6px; line-height: 1.4; }
+.pin-popup img { width: 100%; border-radius: 6px; margin-bottom: 6px; }
+.pin-popup .pp-del { font-size: 0.75rem; color: var(--berry); cursor: pointer; text-decoration: underline; }
+
+/* toast */
+#toast {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%) translateY(80px);
+  background: var(--ink);
+  color: var(--cream);
+  padding: 10px 20px;
+  border-radius: 20px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  z-index: 2000;
+  transition: transform 0.3s cubic-bezier(.22,1,.36,1);
+  pointer-events: none;
+  white-space: nowrap;
+}
+#toast.show { transform: translateX(-50%) translateY(0); }
+
+/* leaflet overrides */
+.leaflet-popup-content-wrapper {
+  border-radius: var(--radius) !important;
+  box-shadow: var(--shadow) !important;
+}
+.leaflet-popup-content { margin: 12px 14px !important; }
+
+/* scrollbar styling */
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--bark-light); border-radius: 2px; }
+</style>
+</head>
+<body>
+
+<div id="header">
+  <div>
+    <h1>Wild<span>Harvest</span></h1>
+    <div id="sync-status">Not configured</div>
+  </div>
+  <button id="sync-btn" onclick="syncData()">⟳ Sync</button>
+</div>
+
+<div id="tabs">
+  <div class="tab active" onclick="showPanel('map')" id="tab-map">
+    <span class="tab-icon">🗺️</span>Map
+  </div>
+  <div class="tab" onclick="showPanel('calendar')" id="tab-calendar">
+    <span class="tab-icon">🌿</span>Calendar
+  </div>
+  <div class="tab" onclick="showPanel('settings')" id="tab-settings">
+    <span class="tab-icon">⚙️</span>Setup
+  </div>
+</div>
+
+<div id="main">
+
+  <!-- MAP PANEL -->
+  <div class="panel active" id="map-panel">
+    <div id="map"></div>
+    <div id="map-controls">
+      <div class="map-btn" id="add-pin-btn" onclick="toggleAddPin()" title="Add pin">📍</div>
+      <div class="map-btn" onclick="locateMe()" title="My location">◎</div>
+    </div>
+    <div id="add-hint">Tap the map to place a pin</div>
+  </div>
+
+  <!-- CALENDAR PANEL -->
+  <div class="panel" id="calendar-panel">
+    <div class="month-strip" id="month-strip"></div>
+    <div class="cal-section-title">
+      <span id="cal-month-title">All entries</span>
+    </div>
+    <div id="cal-entries"></div>
+    <button class="add-cal-btn" onclick="openCalModal()">＋ Add Harvest Entry</button>
+    <button class="export-btn" onclick="exportICS()">📅 Export to Google Calendar (.ics)</button>
+  </div>
+
+  <!-- SETTINGS PANEL -->
+  <div class="panel" id="settings-panel">
+    <div class="settings-section">
+      <h3>🐙 GitHub Sync</h3>
+      <p>Store your pins and calendar in a private GitHub repo. Create a repo (e.g. <strong>forage-data</strong>), then generate a Personal Access Token with <strong>repo</strong> scope at github.com/settings/tokens.</p>
+      <div class="field-label">GitHub Username</div>
+      <input class="field-input" id="gh-user" type="text" placeholder="yourusername" autocapitalize="none">
+      <div class="field-label">Repository Name</div>
+      <input class="field-input" id="gh-repo" type="text" placeholder="forage-data" autocapitalize="none">
+      <div class="field-label">Personal Access Token</div>
+      <input class="field-input" id="gh-token" type="password" placeholder="ghp_xxxxxxxxxxxx" autocomplete="off">
+      <button class="save-btn" onclick="saveGitHub()">Save & Test Connection</button>
+      <div id="gh-status"></div>
+    </div>
+
+    <div class="settings-section">
+      <h3>📍 Default Map Location</h3>
+      <p>Set your home area so the map opens centred on your region.</p>
+      <div class="field-label">Latitude</div>
+      <input class="field-input" id="home-lat" type="number" step="0.0001" placeholder="49.4800">
+      <div class="field-label">Longitude</div>
+      <input class="field-input" id="home-lng" type="number" step="0.0001" placeholder="-96.4500">
+      <button class="save-btn" onclick="saveHome()">Save Location</button>
+    </div>
+
+    <div class="settings-section">
+      <h3>ℹ️ About</h3>
+      <p>WildHarvest is a private foraging app for two. All data lives in your GitHub repo. Works offline — map tiles are cached after first load. Install to your home screen for the full app experience.</p>
+      <p style="margin-top:8px;font-size:0.72rem;color:#999;">v1.0 · Built with Leaflet + OpenStreetMap</p>
+    </div>
+  </div>
+
+</div>
+
+<!-- ADD/EDIT PIN MODAL -->
+<div class="modal-overlay" id="pin-modal-overlay" onclick="closePinModal(event)">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <h2 id="pin-modal-title">New Pin</h2>
+    <div class="field-label">Species / Name</div>
+    <input class="field-input" id="pm-name" type="text" placeholder="e.g. Chanterelle">
+    <div class="field-label">Type</div>
+    <div class="type-select-grid" id="pm-type-grid"></div>
+    <div class="field-label">Notes</div>
+    <input class="field-input" id="pm-notes" type="text" placeholder="e.g. South-facing slope, near creek">
+    <div class="field-label">Photo (optional)</div>
+    <label class="file-upload-area">
+      <input type="file" accept="image/*" id="pm-photo-input" onchange="handlePhoto(this)">
+      📷 Tap to choose or take a photo
+    </label>
+    <img class="photo-preview" id="pm-photo-preview">
+    <div class="modal-actions">
+      <button class="btn-secondary" onclick="closePinModal()">Cancel</button>
+      <button class="btn-primary" onclick="savePin()">Save Pin</button>
+    </div>
+  </div>
+</div>
+
+<!-- ADD/EDIT CALENDAR MODAL -->
+<div class="modal-overlay" id="cal-modal-overlay" onclick="closeCalModal(event)">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <h2 id="cal-modal-title">New Harvest Entry</h2>
+    <div class="field-label">Species / Name</div>
+    <input class="field-input" id="cm-name" type="text" placeholder="e.g. Fiddleheads">
+    <div class="field-label">Type</div>
+    <div class="type-select-grid" id="cm-type-grid"></div>
+    <div class="field-label">Peak Months</div>
+    <div class="month-checkboxes" id="cm-months"></div>
+    <div class="field-label">Notes</div>
+    <input class="field-input" id="cm-notes" type="text" placeholder="e.g. Look near streams after snowmelt">
+    <div class="modal-actions" id="cal-modal-actions">
+      <button class="btn-secondary" onclick="closeCalModal()">Cancel</button>
+      <button class="btn-primary" onclick="saveCalEntry()">Save</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+// ── STATE ──
+const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const TYPES = [
+  { key: 'mushroom', label: '🍄 Mushroom' },
+  { key: 'berry',    label: '🫐 Berry' },
+  { key: 'green',    label: '🌿 Green' },
+  { key: 'root',     label: '🥕 Root' },
+  { key: 'nut',      label: '🌰 Nut' },
+  { key: 'other',    label: '✨ Other' },
+];
+
+let state = {
+  pins: [],
+  calendar: [],
+  github: { user: '', repo: '', token: '' },
+  home: { lat: 49.4800, lng: -96.4500 },
+  fileSHAs: {}
+};
+
+let map, addingPin = false, pendingLatLng = null;
+let editPinId = null, editCalId = null;
+let selectedPinType = 'mushroom', selectedCalType = 'mushroom';
+let calSelectedMonth = null;
+let pendingPhotoBase64 = null;
+
+// ── PERSISTENCE ──
+function save() {
+  const { github, home } = state;
+  localStorage.setItem('wh_github', JSON.stringify(github));
+  localStorage.setItem('wh_home', JSON.stringify(home));
+  localStorage.setItem('wh_pins', JSON.stringify(state.pins));
+  localStorage.setItem('wh_calendar', JSON.stringify(state.calendar));
+  localStorage.setItem('wh_shas', JSON.stringify(state.fileSHAs));
+}
+
+function load() {
+  try { state.github = JSON.parse(localStorage.getItem('wh_github')) || state.github; } catch(e){}
+  try { state.home = JSON.parse(localStorage.getItem('wh_home')) || state.home; } catch(e){}
+  try { state.pins = JSON.parse(localStorage.getItem('wh_pins')) || []; } catch(e){}
+  try { state.calendar = JSON.parse(localStorage.getItem('wh_calendar')) || []; } catch(e){}
+  try { state.fileSHAs = JSON.parse(localStorage.getItem('wh_shas')) || {}; } catch(e){}
+}
+
+// ── GITHUB ──
+async function ghRequest(path, method = 'GET', body = null) {
+  const { user, repo, token } = state.github;
+  if (!token) throw new Error('No token');
+  const opts = {
+    method,
+    headers: {
+      'Authorization': `token ${token}`,
+      'Accept': 'application/vnd.github.v3+json',
+      'Content-Type': 'application/json'
+    }
+  };
+  if (body) opts.body = JSON.stringify(body);
+  const res = await fetch(`https://api.github.com/repos/${user}/${repo}/contents/${path}`, opts);
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'GitHub error');
+  return data;
+}
+
+async function ghGetFile(path) {
+  try {
+    const data = await ghRequest(path);
+    state.fileSHAs[path] = data.sha;
+    const content = atob(data.content.replace(/\s/g,''));
+    return JSON.parse(content);
+  } catch(e) {
+    if (e.message && e.message.includes('Not Found')) return null;
+    throw e;
+  }
+}
+
+async function ghPutFile(path, obj) {
+  const content = btoa(unescape(encodeURIComponent(JSON.stringify(obj, null, 2))));
+  const body = { message: `Update ${path}`, content };
+  if (state.fileSHAs[path]) body.sha = state.fileSHAs[path];
+  const data = await ghRequest(path, 'PUT', body);
+  state.fileSHAs[path] = data.content.sha;
+  save();
+}
+
+async function syncData() {
+  const { user, repo, token } = state.github;
+  if (!user || !repo || !token) { toast('⚙️ Configure GitHub first'); showPanel('settings'); return; }
+  const btn = document.getElementById('sync-btn');
+  btn.classList.add('syncing');
+  btn.textContent = '⟳ Syncing…';
+  try {
+    const [remotePins, remoteCal] = await Promise.all([
+      ghGetFile('pins.json'),
+      ghGetFile('calendar.json')
+    ]);
+
+    // Merge: remote wins for any pin/entry the other device added
+    if (remotePins) {
+      const localIds = new Set(state.pins.map(p => p.id));
+      const remoteIds = new Set(remotePins.map(p => p.id));
+      // keep all remote, add any local-only
+      const merged = [...remotePins];
+      state.pins.filter(p => !remoteIds.has(p.id)).forEach(p => merged.push(p));
+      state.pins = merged;
+    }
+    if (remoteCal) {
+      const localIds = new Set(state.calendar.map(e => e.id));
+      const remoteIds = new Set(remoteCal.map(e => e.id));
+      const merged = [...remoteCal];
+      state.calendar.filter(e => !remoteIds.has(e.id)).forEach(e => merged.push(e));
+      state.calendar = merged;
+    }
+
+    // Push merged data back
+    await ghPutFile('pins.json', state.pins);
+    await ghPutFile('calendar.json', state.calendar);
+
+    save();
+    renderPins();
+    renderCalendar();
+    document.getElementById('sync-status').textContent = 'Synced ' + new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+    toast('✓ Synced successfully');
+  } catch(e) {
+    toast('✗ Sync failed: ' + e.message);
+    document.getElementById('sync-status').textContent = 'Sync error';
+  }
+  btn.classList.remove('syncing');
+  btn.textContent = '⟳ Sync';
+}
+
+async function saveGitHub() {
+  state.github.user = document.getElementById('gh-user').value.trim();
+  state.github.repo = document.getElementById('gh-repo').value.trim();
+  state.github.token = document.getElementById('gh-token').value.trim();
+  save();
+  const el = document.getElementById('gh-status');
+  el.innerHTML = '<span class="status-pill none">Testing…</span>';
+  try {
+    await ghRequest('');
+    el.innerHTML = '<span class="status-pill ok">✓ Connected</span>';
+    document.getElementById('sync-status').textContent = 'Connected';
+    toast('✓ GitHub connected!');
+  } catch(e) {
+    el.innerHTML = `<span class="status-pill err">✗ ${e.message}</span>`;
+  }
+}
+
+// ── MAP ──
+function initMap() {
+  map = L.map('map', { zoomControl: false }).setView([state.home.lat, state.home.lng], 12);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© OpenStreetMap contributors',
+    maxZoom: 19
+  }).addTo(map);
+  map.on('click', onMapClick);
+  renderPins();
+}
+
+function onMapClick(e) {
+  if (!addingPin) return;
+  pendingLatLng = e.latlng;
+  toggleAddPin(false);
+  openPinModal();
+}
+
+function toggleAddPin(force) {
+  addingPin = (force !== undefined) ? force : !addingPin;
+  const btn = document.getElementById('add-pin-btn');
+  const hint = document.getElementById('add-hint');
+  if (addingPin) {
+    btn.classList.add('adding');
+    btn.title = 'Cancel';
+    hint.classList.add('visible');
+    map.getContainer().style.cursor = 'crosshair';
+  } else {
+    btn.classList.remove('adding');
+    btn.title = 'Add pin';
+    hint.classList.remove('visible');
+    map.getContainer().style.cursor = '';
+  }
+}
+
+function locateMe() {
+  if (!navigator.geolocation) { toast('Geolocation not available'); return; }
+  navigator.geolocation.getCurrentPosition(pos => {
+    map.setView([pos.coords.latitude, pos.coords.longitude], 15);
+  }, () => toast('Could not get location'));
+}
+
+const PIN_COLORS = {
+  mushroom: '#b87333', berry: '#c4366e', green: '#4a7c3f',
+  root: '#6b4c2a', nut: '#9a7550', other: '#5a8a3a'
+};
+
+function makeIcon(type) {
+  const color = PIN_COLORS[type] || '#5a8a3a';
+  return L.divIcon({
+    className: '',
+    html: `<div style="width:28px;height:28px;background:${color};border:3px solid white;border-radius:50% 50% 50% 0;transform:rotate(-45deg);box-shadow:0 2px 8px rgba(0,0,0,0.35)"></div>`,
+    iconSize: [28, 28],
+    iconAnchor: [14, 28],
+    popupAnchor: [0, -28]
+  });
+}
+
+let markerMap = {};
+
+function renderPins() {
+  if (!map) return;
+  // Remove old markers
+  Object.values(markerMap).forEach(m => map.removeLayer(m));
+  markerMap = {};
+  state.pins.forEach(pin => {
+    const m = L.marker([pin.lat, pin.lng], { icon: makeIcon(pin.type) }).addTo(map);
+    const typeObj = TYPES.find(t => t.key === pin.type) || TYPES[0];
+    let imgHtml = '';
+    if (pin.photo) imgHtml = `<img src="${pin.photo}" style="width:100%;border-radius:6px;margin-bottom:6px;">`;
+    m.bindPopup(`
+      <div class="pin-popup">
+        ${imgHtml}
+        <h4>${pin.name}</h4>
+        <div class="pp-type">${typeObj.label}</div>
+        ${pin.notes ? `<div class="pp-notes">${pin.notes}</div>` : ''}
+        <span class="pp-del" onclick="deletePin('${pin.id}')">🗑 Delete pin</span>
+      </div>
+    `);
+    markerMap[pin.id] = m;
+  });
+}
+
+function deletePin(id) {
+  state.pins = state.pins.filter(p => p.id !== id);
+  save();
+  renderPins();
+  toast('Pin deleted');
+}
+
+// ── PIN MODAL ──
+function buildTypeGrid(containerId, selected, setter) {
+  const el = document.getElementById(containerId);
+  el.innerHTML = '';
+  TYPES.forEach(t => {
+    const chip = document.createElement('div');
+    chip.className = 'type-chip' + (t.key === selected ? ' selected' : '');
+    chip.textContent = t.label;
+    chip.onclick = () => {
+      setter(t.key);
+      buildTypeGrid(containerId, t.key, setter);
+    };
+    el.appendChild(chip);
+  });
+}
+
+function openPinModal(pinId = null) {
+  editPinId = pinId;
+  pendingPhotoBase64 = null;
+  const pin = pinId ? state.pins.find(p => p.id === pinId) : null;
+  document.getElementById('pin-modal-title').textContent = pin ? 'Edit Pin' : 'New Pin';
+  document.getElementById('pm-name').value = pin ? pin.name : '';
+  document.getElementById('pm-notes').value = pin ? pin.notes : '';
+  selectedPinType = pin ? pin.type : 'mushroom';
+  buildTypeGrid('pm-type-grid', selectedPinType, v => { selectedPinType = v; });
+  const preview = document.getElementById('pm-photo-preview');
+  if (pin && pin.photo) { preview.src = pin.photo; preview.classList.add('visible'); }
+  else { preview.src = ''; preview.classList.remove('visible'); }
+  document.getElementById('pin-modal-overlay').classList.add('open');
+}
+
+function closePinModal(e) {
+  if (e && e.target !== e.currentTarget) return;
+  document.getElementById('pin-modal-overlay').classList.remove('open');
+  pendingLatLng = null; editPinId = null; pendingPhotoBase64 = null;
+}
+
+function handlePhoto(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    // Resize/compress to max ~600px wide
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      const maxW = 600;
+      const scale = Math.min(1, maxW / img.width);
+      canvas.width = img.width * scale;
+      canvas.height = img.height * scale;
+      canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+      pendingPhotoBase64 = canvas.toDataURL('image/jpeg', 0.75);
+      const preview = document.getElementById('pm-photo-preview');
+      preview.src = pendingPhotoBase64;
+      preview.classList.add('visible');
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+function savePin() {
+  const name = document.getElementById('pm-name').value.trim();
+  if (!name) { toast('Please enter a name'); return; }
+
+  if (editPinId) {
+    const pin = state.pins.find(p => p.id === editPinId);
+    if (pin) {
+      pin.name = name;
+      pin.type = selectedPinType;
+      pin.notes = document.getElementById('pm-notes').value.trim();
+      if (pendingPhotoBase64) pin.photo = pendingPhotoBase64;
+    }
+  } else {
+    if (!pendingLatLng) { closePinModal(); return; }
+    const pin = {
+      id: Date.now().toString(),
+      name,
+      type: selectedPinType,
+      notes: document.getElementById('pm-notes').value.trim(),
+      lat: pendingLatLng.lat,
+      lng: pendingLatLng.lng,
+      photo: pendingPhotoBase64 || null,
+      created: new Date().toISOString()
+    };
+    state.pins.push(pin);
+  }
+  save();
+  renderPins();
+  closePinModal();
+  toast('📍 Pin saved! Sync to share.');
+}
+
+// ── CALENDAR ──
+function buildMonthStrip() {
+  const strip = document.getElementById('month-strip');
+  strip.innerHTML = '';
+  const all = document.createElement('div');
+  all.className = 'month-chip active';
+  all.textContent = 'All';
+  all.onclick = () => selectCalMonth(null, all);
+  strip.appendChild(all);
+  MONTHS.forEach((m, i) => {
+    const chip = document.createElement('div');
+    chip.className = 'month-chip';
+    chip.textContent = m;
+    chip.id = `mchip-${i}`;
+    chip.onclick = () => selectCalMonth(i, chip);
+    strip.appendChild(chip);
+  });
+  // auto-scroll to current month
+  const now = new Date().getMonth();
+  const curr = document.getElementById(`mchip-${now}`);
+  if (curr) setTimeout(() => curr.scrollIntoView({ inline: 'center', behavior: 'smooth' }), 200);
+}
+
+function selectCalMonth(idx, el) {
+  document.querySelectorAll('.month-chip').forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
+  calSelectedMonth = idx;
+  renderCalendar();
+}
+
+function renderCalendar() {
+  const container = document.getElementById('cal-entries');
+  container.innerHTML = '';
+  const title = document.getElementById('cal-month-title');
+
+  let entries = state.calendar;
+  if (calSelectedMonth !== null) {
+    entries = entries.filter(e => e.months && e.months.includes(calSelectedMonth));
+    title.textContent = `Harvesting in ${MONTHS[calSelectedMonth]}`;
+  } else {
+    title.textContent = 'All entries';
+  }
+
+  if (entries.length === 0) {
+    container.innerHTML = '<div class="empty-state">Nothing here yet — add your first harvest entry!</div>';
+    return;
+  }
+
+  entries.forEach(entry => {
+    const typeObj = TYPES.find(t => t.key === entry.type) || TYPES[0];
+    const monthStr = entry.months && entry.months.length > 0
+      ? entry.months.map(m => MONTHS[m]).join(', ')
+      : 'No months set';
+
+    const card = document.createElement('div');
+    card.className = `harvest-card type-${entry.type}`;
+    card.innerHTML = `
+      <div class="hc-icon">${typeObj.label.split(' ')[0]}</div>
+      <div class="hc-body">
+        <div class="hc-name">${entry.name}</div>
+        <div class="hc-months">📅 ${monthStr}</div>
+        ${entry.notes ? `<div class="hc-notes">${entry.notes}</div>` : ''}
+      </div>
+      <div class="hc-actions">
+        <button class="icon-btn" onclick="editCalEntry('${entry.id}')" title="Edit">✏️</button>
+        <button class="icon-btn del" onclick="deleteCalEntry('${entry.id}')" title="Delete">🗑</button>
+      </div>
+    `;
+    container.appendChild(card);
+  });
+}
+
+function buildMonthCheckboxes() {
+  const el = document.getElementById('cm-months');
+  el.innerHTML = '';
+  MONTHS.forEach((m, i) => {
+    const label = document.createElement('label');
+    label.className = 'month-check';
+    label.innerHTML = `
+      <input type="checkbox" value="${i}" id="cmm-${i}">
+      <div class="month-check-label">${m}</div>
+    `;
+    el.appendChild(label);
+  });
+}
+
+function openCalModal(entryId = null) {
+  editCalId = entryId;
+  const entry = entryId ? state.calendar.find(e => e.id === entryId) : null;
+  document.getElementById('cal-modal-title').textContent = entry ? 'Edit Entry' : 'New Harvest Entry';
+  document.getElementById('cm-name').value = entry ? entry.name : '';
+  document.getElementById('cm-notes').value = entry ? entry.notes || '' : '';
+  selectedCalType = entry ? entry.type : 'mushroom';
+  buildTypeGrid('cm-type-grid', selectedCalType, v => { selectedCalType = v; });
+  buildMonthCheckboxes();
+  if (entry && entry.months) {
+    entry.months.forEach(m => {
+      const cb = document.getElementById(`cmm-${m}`);
+      if (cb) cb.checked = true;
+    });
+  }
+  // Show delete button if editing
+  const actions = document.getElementById('cal-modal-actions');
+  if (entry) {
+    actions.innerHTML = `
+      <button class="btn-danger" onclick="deleteCalEntry('${entry.id}',true)">Delete</button>
+      <button class="btn-primary" onclick="saveCalEntry()">Save</button>
+    `;
+  } else {
+    actions.innerHTML = `
+      <button class="btn-secondary" onclick="closeCalModal()">Cancel</button>
+      <button class="btn-primary" onclick="saveCalEntry()">Save</button>
+    `;
+  }
+  document.getElementById('cal-modal-overlay').classList.add('open');
+}
+
+function closeCalModal(e) {
+  if (e && e.target !== e.currentTarget) return;
+  document.getElementById('cal-modal-overlay').classList.remove('open');
+  editCalId = null;
+}
+
+function editCalEntry(id) { openCalModal(id); }
+
+function deleteCalEntry(id, fromModal = false) {
+  state.calendar = state.calendar.filter(e => e.id !== id);
+  save();
+  renderCalendar();
+  if (fromModal) closeCalModal();
+  toast('Entry deleted');
+}
+
+function saveCalEntry() {
+  const name = document.getElementById('cm-name').value.trim();
+  if (!name) { toast('Please enter a name'); return; }
+  const months = Array.from(document.querySelectorAll('#cm-months input:checked')).map(c => parseInt(c.value));
+
+  if (editCalId) {
+    const entry = state.calendar.find(e => e.id === editCalId);
+    if (entry) {
+      entry.name = name;
+      entry.type = selectedCalType;
+      entry.months = months;
+      entry.notes = document.getElementById('cm-notes').value.trim();
+    }
+  } else {
+    state.calendar.push({
+      id: Date.now().toString(),
+      name,
+      type: selectedCalType,
+      months,
+      notes: document.getElementById('cm-notes').value.trim(),
+      created: new Date().toISOString()
+    });
+  }
+  save();
+  renderCalendar();
+  closeCalModal();
+  toast('🌿 Entry saved! Sync to share.');
+}
+
+// ── ICS EXPORT ──
+function exportICS() {
+  if (state.calendar.length === 0) { toast('No entries to export'); return; }
+  const year = new Date().getFullYear();
+  let ics = `BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//WildHarvest//EN\r\nCALNAME:Wild Harvest Schedule\r\n`;
+  state.calendar.forEach(entry => {
+    entry.months.forEach(m => {
+      const start = `${year}${String(m+1).padStart(2,'0')}01`;
+      // end = last day of month
+      const lastDay = new Date(year, m+1, 0).getDate();
+      const end = `${year}${String(m+1).padStart(2,'0')}${String(lastDay).padStart(2,'0')}`;
+      ics += `BEGIN:VEVENT\r\n`;
+      ics += `UID:${entry.id}-${m}@wildharvest\r\n`;
+      ics += `DTSTART;VALUE=DATE:${start}\r\n`;
+      ics += `DTEND;VALUE=DATE:${end}\r\n`;
+      ics += `SUMMARY:🌿 ${entry.name} season\r\n`;
+      ics += `DESCRIPTION:${entry.notes || ''}\r\n`;
+      ics += `END:VEVENT\r\n`;
+    });
+  });
+  ics += `END:VCALENDAR`;
+  const blob = new Blob([ics], { type: 'text/calendar' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'wildharvest.ics';
+  a.click();
+  toast('📅 .ics downloaded');
+}
+
+// ── SETTINGS ──
+function saveHome() {
+  state.home.lat = parseFloat(document.getElementById('home-lat').value) || 49.4800;
+  state.home.lng = parseFloat(document.getElementById('home-lng').value) || -96.4500;
+  save();
+  map.setView([state.home.lat, state.home.lng], 12);
+  toast('✓ Home location saved');
+}
+
+function loadSettingsUI() {
+  document.getElementById('gh-user').value = state.github.user || '';
+  document.getElementById('gh-repo').value = state.github.repo || '';
+  document.getElementById('gh-token').value = state.github.token || '';
+  document.getElementById('home-lat').value = state.home.lat || '';
+  document.getElementById('home-lng').value = state.home.lng || '';
+  if (state.github.user) {
+    document.getElementById('sync-status').textContent = state.github.user + '/' + state.github.repo;
+  }
+}
+
+// ── TABS ──
+function showPanel(name) {
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById(name + '-panel').classList.add('active');
+  document.getElementById('tab-' + name).classList.add('active');
+  if (name === 'map') setTimeout(() => map.invalidateSize(), 50);
+}
+
+// ── TOAST ──
+function toast(msg, dur = 2500) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), dur);
+}
+
+// ── SEED DATA ──
+function seedCalendarIfEmpty() {
+  if (state.calendar.length > 0) return;
+  const seeds = [
+    // SPRING
+    { name: 'Stinging Nettle', type: 'green', months: [3,4], notes: 'Pick young shoots before they flower — wear gloves. Moist areas, ditches, riverbanks' },
+    { name: 'Cattail Shoots', type: 'green', months: [3,4,5], notes: 'Harvest young shoots and pollen heads in spring. Marshes and pond edges' },
+    { name: 'Dandelion', type: 'green', months: [3,4,5,6], notes: 'Leaves best before flowering. Flowers for wine/fritters. Roots in fall too' },
+    { name: 'Morel Mushroom', type: 'mushroom', months: [4,5], notes: 'Look when dandelions start blooming. Elm and ash woodlands, disturbed ground, old orchards' },
+    { name: 'Wild Leeks (Ramps)', type: 'green', months: [4,5], notes: 'Rich moist deciduous forest. Strong garlic-onion smell. Harvest leaves only, leave bulb' },
+    { name: 'Wintergreen Berry', type: 'berry', months: [3,4,5], notes: 'Pick before June — overwinter berries from last fall. Low evergreen plant in sandy jack pine woods' },
+    { name: 'Wild Asparagus', type: 'green', months: [4,5], notes: 'GPS locations in fall when feathery. Look in sunny roadsides and field edges' },
+    { name: 'Fiddleheads (Ostrich Fern)', type: 'green', months: [4,5], notes: 'Moist areas near streams and rivers. Harvest tight coils only, blanch before eating' },
+    // SUMMER
+    { name: 'Saskatoon Berry', type: 'berry', months: [6,7], notes: 'Abundant along forest edges and roadsides. Peak mid-July in SE Manitoba' },
+    { name: 'Wild Strawberry', type: 'berry', months: [5,6,7], notes: 'Open meadows, forest edges, sunny slopes. Tiny but intensely sweet' },
+    { name: 'Wild Raspberry', type: 'berry', months: [6,7,8], notes: 'Forest clearings, roadsides, disturbed areas. Very common around Marchand' },
+    { name: 'Lobster Mushroom', type: 'mushroom', months: [6,7,8], notes: 'Mid-summer in mixed and conifer forest. Parasitic — bright orange-red, unmistakable' },
+    { name: 'King Bolete (Porcini)', type: 'mushroom', months: [6,7,8,9], notes: 'After wet periods under spruce and pine. Also fruits in fall after rain' },
+    { name: 'Wild Mint', type: 'green', months: [5,6,7,8], notes: 'Shorelines and streambanks. Strong scent — easy to identify' },
+    { name: 'Chokecherry', type: 'berry', months: [7,8], notes: 'Very common in SE Manitoba. Ripe early August. Excellent for jelly and syrup' },
+    { name: 'Blueberry (Wild)', type: 'berry', months: [7,8], notes: 'Sandy jack pine areas and Sandilands forest. Peak July–early August' },
+    // FALL
+    { name: 'Hazelnut', type: 'nut', months: [7,8], notes: 'Ready August in SE Manitoba. Thickets along forest edges — beat the squirrels!' },
+    { name: 'Highbush Cranberry', type: 'berry', months: [9,10,11], notes: 'Best after first hard frost. Riverbanks and moist thickets. Tart — good for jelly' },
+    { name: 'Rose Hip', type: 'berry', months: [8,9,10], notes: 'After first frost for best flavour and sweetness. Very high vitamin C' },
+    { name: 'Acorn (Bur Oak)', type: 'nut', months: [8,9,10], notes: 'Bur oak common in SE Manitoba. Requires leaching tannins before eating' },
+    { name: 'Oyster Mushroom', type: 'mushroom', months: [9,10], notes: 'On dead or dying hardwoods (poplar, elm). Spring and fall. Easy to ID' },
+  ];
+  seeds.forEach(s => {
+    state.calendar.push({ id: Date.now().toString() + Math.random(), ...s, created: new Date().toISOString() });
+  });
+  save();
+}
+
+// ── INIT ──
+window.addEventListener('DOMContentLoaded', () => {
+  load();
+  seedCalendarIfEmpty();
+  loadSettingsUI();
+  initMap();
+  buildMonthStrip();
+
+  // Auto-select current month
+  const now = new Date().getMonth();
+  const el = document.getElementById(`mchip-${now}`);
+  if (el) {
+    document.querySelectorAll('.month-chip').forEach(c => c.classList.remove('active'));
+    el.classList.add('active');
+    calSelectedMonth = now;
+  }
+  renderCalendar();
+});
+
+// PWA service worker for offline support
+if ('serviceWorker' in navigator) {
+  const sw = `
+const CACHE = 'wildharvest-v1';
+const ASSETS = [
+  'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css',
+  'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js',
+  'https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,500;0,700;1,500&family=Lato:wght@300;400;700&display=swap'
+];
+self.addEventListener('install', e => {
+  e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS).catch(()=>{})));
+  self.skipWaiting();
+});
+self.addEventListener('activate', e => { e.waitUntil(self.clients.claim()); });
+self.addEventListener('fetch', e => {
+  if (e.request.url.includes('tile.openstreetmap.org')) {
+    e.respondWith(caches.open('map-tiles').then(c =>
+      c.match(e.request).then(r => r || fetch(e.request).then(res => { c.put(e.request, res.clone()); return res; }))
+    ));
+    return;
+  }
+  e.respondWith(
+    caches.match(e.request).then(r => r || fetch(e.request))
+  );
+});
+  `;
+  const blob = new Blob([sw], { type: 'text/javascript' });
+  const swUrl = URL.createObjectURL(blob);
+  navigator.serviceWorker.register(swUrl).catch(() => {});
+}
+</script>
+</body>
+</html>
