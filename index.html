@@ -784,7 +784,7 @@ body {
     </div>
     <div id="cal-entries"></div>
     <button class="add-cal-btn" onclick="openCalModal()">＋ Add Harvest Entry</button>
-    <button class="export-btn" onclick="exportICS()">📅 Export to Google Calendar (.ics)</button>
+    <button class="export-btn" onclick="exportICS()">📅 Export All to Calendar (.ics)</button>
   </div>
 
   <!-- SETTINGS PANEL -->
@@ -1285,6 +1285,7 @@ function renderCalendar() {
         ${entry.notes ? `<div class="hc-notes">${entry.notes}</div>` : ''}
       </div>
       <div class="hc-actions">
+        <button class="icon-btn" onclick="exportSingleICS('${entry.id}')" title="Export to calendar">📅</button>
         <button class="icon-btn" onclick="editCalEntry('${entry.id}')" title="Edit">✏️</button>
         <button class="icon-btn del" onclick="deleteCalEntry('${entry.id}')" title="Delete">🗑</button>
       </div>
@@ -1384,6 +1385,33 @@ function saveCalEntry() {
 }
 
 // ── ICS EXPORT ──
+function exportSingleICS(id) {
+  const entry = state.calendar.find(e => e.id === id);
+  if (!entry) return;
+  if (!entry.months || entry.months.length === 0) { toast('No months set for this entry'); return; }
+  const year = new Date().getFullYear();
+  let ics = `BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//WildHarvest//EN\r\nCALNAME:Wild Harvest Schedule\r\n`;
+  entry.months.forEach(m => {
+    const start = `${year}${String(m+1).padStart(2,'0')}01`;
+    const lastDay = new Date(year, m+1, 0).getDate();
+    const end = `${year}${String(m+1).padStart(2,'0')}${String(lastDay).padStart(2,'0')}`;
+    ics += `BEGIN:VEVENT\r\n`;
+    ics += `UID:${entry.id}-${m}@wildharvest\r\n`;
+    ics += `DTSTART;VALUE=DATE:${start}\r\n`;
+    ics += `DTEND;VALUE=DATE:${end}\r\n`;
+    ics += `SUMMARY:🌿 ${entry.name} season\r\n`;
+    ics += `DESCRIPTION:${entry.notes || ''}\r\n`;
+    ics += `END:VEVENT\r\n`;
+  });
+  ics += `END:VCALENDAR`;
+  const blob = new Blob([ics], { type: 'text/calendar' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `${entry.name.replace(/\s+/g,'-').toLowerCase()}.ics`;
+  a.click();
+  toast(`📅 ${entry.name} exported`);
+}
+
 function exportICS() {
   if (state.calendar.length === 0) { toast('No entries to export'); return; }
   const year = new Date().getFullYear();
