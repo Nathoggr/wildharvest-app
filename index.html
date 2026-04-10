@@ -282,6 +282,8 @@ body {
 .hc-name { font-weight: 700; font-size: 0.95rem; color: var(--ink); }
 .hc-months { font-size: 0.74rem; color: var(--bark-light); margin-top: 1px; }
 .hc-notes { font-size: 0.78rem; color: #555; margin-top: 4px; line-height: 1.4; }
+.hc-url { display: inline-block; font-size: 0.75rem; color: var(--forest); margin-top: 5px; text-decoration: underline; }
+.hc-author { font-size: 0.72rem; color: var(--bark-light); font-weight: 400; margin-left: 4px; }
 .hc-actions { display: flex; flex-direction: column; gap: 6px; }
 
 .icon-btn {
@@ -343,6 +345,23 @@ body {
   font-style: italic;
   font-size: 0.88rem;
 }
+
+.cal-search-wrap {
+  margin-bottom: 12px;
+}
+.cal-search {
+  width: 100%;
+  padding: 10px 14px;
+  border: 2px solid var(--parchment);
+  border-radius: 20px;
+  font-family: 'Lato', sans-serif;
+  font-size: 0.88rem;
+  color: var(--ink);
+  background: white;
+  transition: border-color 0.2s;
+  -webkit-appearance: none;
+}
+.cal-search:focus { outline: none; border-color: var(--forest); }
 
 /* ── SETTINGS PANEL ── */
 #settings-panel { padding: 16px; }
@@ -606,6 +625,7 @@ body {
 .pin-popup .pp-notes { font-size: 0.82rem; color: #444; margin-bottom: 6px; line-height: 1.4; }
 .pin-popup img { width: 100%; border-radius: 6px; margin-bottom: 6px; }
 .pin-popup .pp-del { font-size: 0.75rem; color: var(--berry); cursor: pointer; text-decoration: underline; }
+.pin-popup .pp-meta { font-size: 0.72rem; color: var(--bark-light); margin-bottom: 5px; }
 
 /* toast */
 #toast {
@@ -779,6 +799,9 @@ body {
   <!-- CALENDAR PANEL -->
   <div class="panel" id="calendar-panel">
     <div class="month-strip" id="month-strip"></div>
+    <div class="cal-search-wrap">
+      <input class="cal-search" id="cal-search" type="search" placeholder="🔍 Search species, notes…" oninput="renderCalendar()">
+    </div>
     <div class="cal-section-title">
       <span id="cal-month-title">All entries</span>
     </div>
@@ -789,6 +812,13 @@ body {
 
   <!-- SETTINGS PANEL -->
   <div class="panel" id="settings-panel">
+    <div class="settings-section">
+      <h3>👤 Your Name</h3>
+      <p>Shown on your pins, calendar entries, and notes so you can tell who added what.</p>
+      <div class="field-label">Display Name</div>
+      <input class="field-input" id="s-username" type="text" placeholder="e.g. Nat" autocapitalize="words">
+      <button class="save-btn" onclick="saveUsername()">Save Name</button>
+    </div>
     <div class="settings-section">
       <h3>🐙 GitHub Sync</h3>
       <p>Store your pins and calendar in a private GitHub repo. Create a repo (e.g. <strong>forage-data</strong>), then generate a Personal Access Token with <strong>repo</strong> scope at github.com/settings/tokens.</p>
@@ -845,6 +875,8 @@ body {
     <div class="type-select-grid" id="pm-type-grid"></div>
     <div class="field-label">Notes</div>
     <input class="field-input" id="pm-notes" type="text" placeholder="e.g. South-facing slope, near creek">
+    <div class="field-label">Observed Date</div>
+    <input class="field-input" id="pm-date" type="date">
     <div class="field-label">Photo (optional)</div>
     <label class="file-upload-area">
       <input type="file" accept="image/*" id="pm-photo-input" onchange="handlePhoto(this)">
@@ -871,6 +903,8 @@ body {
     <div class="month-checkboxes" id="cm-months"></div>
     <div class="field-label">Notes</div>
     <input class="field-input" id="cm-notes" type="text" placeholder="e.g. Look near streams after snowmelt">
+    <div class="field-label">More Info URL (optional)</div>
+    <input class="field-input" id="cm-url" type="url" placeholder="e.g. https://wildfooduk.com/…">
     <div class="modal-actions" id="cal-modal-actions">
       <button class="btn-secondary" onclick="closeCalModal()">Cancel</button>
       <button class="btn-primary" onclick="saveCalEntry()">Save</button>
@@ -898,6 +932,7 @@ let state = {
   feedback: [],
   github: { user: '', repo: '', token: '' },
   home: { lat: 49.4800, lng: -96.4500 },
+  username: '',
   fileSHAs: {}
 };
 
@@ -912,6 +947,7 @@ function save() {
   const { github, home } = state;
   localStorage.setItem('wh_github', JSON.stringify(github));
   localStorage.setItem('wh_home', JSON.stringify(home));
+  localStorage.setItem('wh_username', state.username || '');
   localStorage.setItem('wh_pins', JSON.stringify(state.pins));
   localStorage.setItem('wh_calendar', JSON.stringify(state.calendar));
   localStorage.setItem('wh_feedback', JSON.stringify(state.feedback));
@@ -921,6 +957,7 @@ function save() {
 function load() {
   try { state.github = JSON.parse(localStorage.getItem('wh_github')) || state.github; } catch(e){}
   try { state.home = JSON.parse(localStorage.getItem('wh_home')) || state.home; } catch(e){}
+  try { state.username = localStorage.getItem('wh_username') || ''; } catch(e){}
   try { state.pins = JSON.parse(localStorage.getItem('wh_pins')) || []; } catch(e){}
   try { state.calendar = JSON.parse(localStorage.getItem('wh_calendar')) || []; } catch(e){}
   try { state.feedback = JSON.parse(localStorage.getItem('wh_feedback')) || []; } catch(e){}
@@ -1108,12 +1145,16 @@ function renderPins() {
     const typeObj = TYPES.find(t => t.key === pin.type) || TYPES[0];
     let imgHtml = '';
     if (pin.photo) imgHtml = `<img src="${pin.photo}" style="width:100%;border-radius:6px;margin-bottom:6px;">`;
+    const dateStr = pin.observedDate ? `📆 ${pin.observedDate}` : '';
+    const authorStr = pin.author ? `· ${pin.author}` : '';
+    const metaStr = (dateStr || authorStr) ? `<div class="pp-meta">${dateStr} ${authorStr}</div>` : '';
     m.bindPopup(`
       <div class="pin-popup">
         ${imgHtml}
         <h4>${pin.name}</h4>
         <div class="pp-type">${typeObj.label}</div>
         ${pin.notes ? `<div class="pp-notes">${pin.notes}</div>` : ''}
+        ${metaStr}
         <span class="pp-del" onclick="deletePin('${pin.id}')">🗑 Delete pin</span>
       </div>
     `);
@@ -1151,6 +1192,7 @@ function openPinModal(pinId = null) {
   document.getElementById('pin-modal-title').textContent = pin ? 'Edit Pin' : 'New Pin';
   document.getElementById('pm-name').value = pin ? pin.name : '';
   document.getElementById('pm-notes').value = pin ? pin.notes : '';
+  document.getElementById('pm-date').value = pin ? (pin.observedDate || '') : new Date().toISOString().split('T')[0];
   selectedPinType = pin ? pin.type : 'mushroom';
   buildTypeGrid('pm-type-grid', selectedPinType, v => { selectedPinType = v; });
   const preview = document.getElementById('pm-photo-preview');
@@ -1199,6 +1241,7 @@ function savePin() {
       pin.name = name;
       pin.type = selectedPinType;
       pin.notes = document.getElementById('pm-notes').value.trim();
+      pin.observedDate = document.getElementById('pm-date').value || '';
       if (pendingPhotoBase64) pin.photo = pendingPhotoBase64;
     }
   } else {
@@ -1208,6 +1251,8 @@ function savePin() {
       name,
       type: selectedPinType,
       notes: document.getElementById('pm-notes').value.trim(),
+      observedDate: document.getElementById('pm-date').value || '',
+      author: state.username || '',
       lat: pendingLatLng.lat,
       lng: pendingLatLng.lng,
       photo: pendingPhotoBase64 || null,
@@ -1255,6 +1300,7 @@ function renderCalendar() {
   const container = document.getElementById('cal-entries');
   container.innerHTML = '';
   const title = document.getElementById('cal-month-title');
+  const query = (document.getElementById('cal-search')?.value || '').toLowerCase().trim();
 
   let entries = state.calendar;
   if (calSelectedMonth !== null) {
@@ -1264,8 +1310,17 @@ function renderCalendar() {
     title.textContent = 'All entries';
   }
 
+  if (query) {
+    entries = entries.filter(e =>
+      e.name.toLowerCase().includes(query) ||
+      (e.notes && e.notes.toLowerCase().includes(query))
+    );
+  }
+
   if (entries.length === 0) {
-    container.innerHTML = '<div class="empty-state">Nothing here yet — add your first harvest entry!</div>';
+    container.innerHTML = query
+      ? `<div class="empty-state">No entries matching "${query}"</div>`
+      : '<div class="empty-state">Nothing here yet — add your first harvest entry!</div>';
     return;
   }
 
@@ -1274,15 +1329,20 @@ function renderCalendar() {
     const monthStr = entry.months && entry.months.length > 0
       ? entry.months.map(m => MONTHS[m]).join(', ')
       : 'No months set';
+    const urlHtml = entry.url
+      ? `<a class="hc-url" href="${entry.url}" target="_blank" rel="noopener">🔗 More info</a>`
+      : '';
+    const authorHtml = entry.author ? `<span class="hc-author">— ${entry.author}</span>` : '';
 
     const card = document.createElement('div');
     card.className = `harvest-card type-${entry.type}`;
     card.innerHTML = `
       <div class="hc-icon">${typeObj.label.split(' ')[0]}</div>
       <div class="hc-body">
-        <div class="hc-name">${entry.name}</div>
+        <div class="hc-name">${entry.name} ${authorHtml}</div>
         <div class="hc-months">📅 ${monthStr}</div>
         ${entry.notes ? `<div class="hc-notes">${entry.notes}</div>` : ''}
+        ${urlHtml}
       </div>
       <div class="hc-actions">
         <button class="icon-btn" onclick="exportSingleICS('${entry.id}')" title="Export to calendar">📅</button>
@@ -1314,6 +1374,7 @@ function openCalModal(entryId = null) {
   document.getElementById('cal-modal-title').textContent = entry ? 'Edit Entry' : 'New Harvest Entry';
   document.getElementById('cm-name').value = entry ? entry.name : '';
   document.getElementById('cm-notes').value = entry ? entry.notes || '' : '';
+  document.getElementById('cm-url').value = entry ? entry.url || '' : '';
   selectedCalType = entry ? entry.type : 'mushroom';
   buildTypeGrid('cm-type-grid', selectedCalType, v => { selectedCalType = v; });
   buildMonthCheckboxes();
@@ -1323,7 +1384,6 @@ function openCalModal(entryId = null) {
       if (cb) cb.checked = true;
     });
   }
-  // Show delete button if editing
   const actions = document.getElementById('cal-modal-actions');
   if (entry) {
     actions.innerHTML = `
@@ -1359,6 +1419,8 @@ function saveCalEntry() {
   const name = document.getElementById('cm-name').value.trim();
   if (!name) { toast('Please enter a name'); return; }
   const months = Array.from(document.querySelectorAll('#cm-months input:checked')).map(c => parseInt(c.value));
+  const url = document.getElementById('cm-url').value.trim();
+  const notes = document.getElementById('cm-notes').value.trim();
 
   if (editCalId) {
     const entry = state.calendar.find(e => e.id === editCalId);
@@ -1366,7 +1428,8 @@ function saveCalEntry() {
       entry.name = name;
       entry.type = selectedCalType;
       entry.months = months;
-      entry.notes = document.getElementById('cm-notes').value.trim();
+      entry.notes = notes;
+      entry.url = url;
     }
   } else {
     state.calendar.push({
@@ -1374,7 +1437,9 @@ function saveCalEntry() {
       name,
       type: selectedCalType,
       months,
-      notes: document.getElementById('cm-notes').value.trim(),
+      notes,
+      url,
+      author: state.username || '',
       created: new Date().toISOString()
     });
   }
@@ -1400,7 +1465,7 @@ function exportSingleICS(id) {
     ics += `DTSTART;VALUE=DATE:${start}\r\n`;
     ics += `DTEND;VALUE=DATE:${end}\r\n`;
     ics += `SUMMARY:🌿 ${entry.name} season\r\n`;
-    ics += `DESCRIPTION:${entry.notes || ''}\r\n`;
+    ics += `DESCRIPTION:${entry.notes || ''}${entry.url ? ' ' + entry.url : ''}\r\n`;
     ics += `END:VEVENT\r\n`;
   });
   ics += `END:VCALENDAR`;
@@ -1441,6 +1506,12 @@ function exportICS() {
 }
 
 // ── SETTINGS ──
+function saveUsername() {
+  state.username = document.getElementById('s-username').value.trim();
+  save();
+  toast('✓ Name saved');
+}
+
 function saveHome() {
   state.home.lat = parseFloat(document.getElementById('home-lat').value) || 49.4800;
   state.home.lng = parseFloat(document.getElementById('home-lng').value) || -96.4500;
@@ -1450,6 +1521,7 @@ function saveHome() {
 }
 
 function loadSettingsUI() {
+  document.getElementById('s-username').value = state.username || '';
   document.getElementById('gh-user').value = state.github.user || '';
   document.getElementById('gh-repo').value = state.github.repo || '';
   document.getElementById('gh-token').value = state.github.token || '';
@@ -1556,6 +1628,12 @@ window.addEventListener('DOMContentLoaded', () => {
   }
   renderCalendar();
   renderFeedback();
+
+  // Auto-sync if GitHub is configured
+  const { user, repo, token } = state.github;
+  if (user && repo && token) {
+    setTimeout(() => syncData(), 1500); // slight delay so map loads first
+  }
 });
 
 // PWA service worker for offline support
