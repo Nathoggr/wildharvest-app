@@ -282,6 +282,7 @@ body {
 .hc-name { font-weight: 700; font-size: 0.95rem; color: var(--ink); }
 .hc-months { font-size: 0.74rem; color: var(--bark-light); margin-top: 1px; }
 .hc-notes { font-size: 0.78rem; color: #555; margin-top: 4px; line-height: 1.4; }
+.hc-url { display: inline-block; font-size: 0.75rem; color: var(--forest); margin-top: 5px; text-decoration: underline; }
 .hc-actions { display: flex; flex-direction: column; gap: 6px; }
 
 .icon-btn {
@@ -606,6 +607,7 @@ body {
 .pin-popup .pp-notes { font-size: 0.82rem; color: #444; margin-bottom: 6px; line-height: 1.4; }
 .pin-popup img { width: 100%; border-radius: 6px; margin-bottom: 6px; }
 .pin-popup .pp-del { font-size: 0.75rem; color: var(--berry); cursor: pointer; text-decoration: underline; }
+.pin-popup .pp-meta { font-size: 0.72rem; color: var(--bark-light); margin-bottom: 5px; }
 
 /* toast */
 #toast {
@@ -711,7 +713,7 @@ body {
 
 .fb-entry.completed {
   border-left-color: var(--moss);
-  opacity: 0.75;
+  opacity: 0.7;
 }
 
 .fb-entry.completed .fb-entry-text {
@@ -726,9 +728,6 @@ body {
   margin: 18px 0 10px;
   padding-top: 14px;
   border-top: 1px solid var(--parchment);
-  display: flex;
-  align-items: center;
-  gap: 6px;
 }
 
 .fb-entry-body { flex: 1; min-width: 0; }
@@ -867,6 +866,8 @@ body {
     <div class="type-select-grid" id="pm-type-grid"></div>
     <div class="field-label">Notes</div>
     <input class="field-input" id="pm-notes" type="text" placeholder="e.g. South-facing slope, near creek">
+    <div class="field-label">Observed Date</div>
+    <input class="field-input" id="pm-date" type="date">
     <div class="field-label">Photo (optional)</div>
     <label class="file-upload-area">
       <input type="file" accept="image/*" id="pm-photo-input" onchange="handlePhoto(this)">
@@ -893,6 +894,8 @@ body {
     <div class="month-checkboxes" id="cm-months"></div>
     <div class="field-label">Notes</div>
     <input class="field-input" id="cm-notes" type="text" placeholder="e.g. Look near streams after snowmelt">
+    <div class="field-label">More Info URL (optional)</div>
+    <input class="field-input" id="cm-url" type="url" placeholder="e.g. https://wildfooduk.com/…">
     <div class="modal-actions" id="cal-modal-actions">
       <button class="btn-secondary" onclick="closeCalModal()">Cancel</button>
       <button class="btn-primary" onclick="saveCalEntry()">Save</button>
@@ -1018,9 +1021,27 @@ async function syncData() {
       state.calendar = merged;
     }
     if (remoteFeedback) {
-      const remoteIds = new Set(remoteFeedback.map(e => e.id));
-      const merged = [...remoteFeedback];
-      state.feedback.filter(e => !remoteIds.has(e.id)).forEach(e => merged.push(e));
+      const remoteMap = new Map(remoteFeedback.map(e => [e.id, e]));
+      const localMap = new Map(state.feedback.map(e => [e.id, e]));
+      const merged = [];
+      // For entries in both: keep whichever has completedAt more recently, or local if remote lacks it
+      const allIds = new Set([...remoteMap.keys(), ...localMap.keys()]);
+      allIds.forEach(id => {
+        const remote = remoteMap.get(id);
+        const local = localMap.get(id);
+        if (remote && local) {
+          // Merge: prefer local completed state if it's newer or remote doesn't have it
+          const localTime = local.completedAt ? new Date(local.completedAt) : null;
+          const remoteTime = remote.completedAt ? new Date(remote.completedAt) : null;
+          if (localTime && (!remoteTime || localTime > remoteTime)) {
+            merged.push({ ...remote, completed: local.completed, completedAt: local.completedAt, completedBy: local.completedBy });
+          } else {
+            merged.push(remote);
+          }
+        } else {
+          merged.push(remote || local);
+        }
+      });
       state.feedback = merged;
     }
 
@@ -1130,12 +1151,14 @@ function renderPins() {
     const typeObj = TYPES.find(t => t.key === pin.type) || TYPES[0];
     let imgHtml = '';
     if (pin.photo) imgHtml = `<img src="${pin.photo}" style="width:100%;border-radius:6px;margin-bottom:6px;">`;
+    const dateStr = pin.observedDate ? `<div class="pp-meta">📆 ${pin.observedDate}${pin.author ? ' · ' + pin.author : ''}</div>` : (pin.author ? `<div class="pp-meta">${pin.author}</div>` : '');
     m.bindPopup(`
       <div class="pin-popup">
         ${imgHtml}
         <h4>${pin.name}</h4>
         <div class="pp-type">${typeObj.label}</div>
         ${pin.notes ? `<div class="pp-notes">${pin.notes}</div>` : ''}
+        ${dateStr}
         <span class="pp-del" onclick="deletePin('${pin.id}')">🗑 Delete pin</span>
       </div>
     `);
@@ -1173,6 +1196,7 @@ function openPinModal(pinId = null) {
   document.getElementById('pin-modal-title').textContent = pin ? 'Edit Pin' : 'New Pin';
   document.getElementById('pm-name').value = pin ? pin.name : '';
   document.getElementById('pm-notes').value = pin ? pin.notes : '';
+  document.getElementById('pm-date').value = pin ? (pin.observedDate || '') : new Date().toISOString().split('T')[0];
   selectedPinType = pin ? pin.type : 'mushroom';
   buildTypeGrid('pm-type-grid', selectedPinType, v => { selectedPinType = v; });
   const preview = document.getElementById('pm-photo-preview');
@@ -1221,6 +1245,7 @@ function savePin() {
       pin.name = name;
       pin.type = selectedPinType;
       pin.notes = document.getElementById('pm-notes').value.trim();
+      pin.observedDate = document.getElementById('pm-date').value || '';
       if (pendingPhotoBase64) pin.photo = pendingPhotoBase64;
     }
   } else {
@@ -1230,6 +1255,8 @@ function savePin() {
       name,
       type: selectedPinType,
       notes: document.getElementById('pm-notes').value.trim(),
+      observedDate: document.getElementById('pm-date').value || '',
+      author: state.username || '',
       lat: pendingLatLng.lat,
       lng: pendingLatLng.lng,
       photo: pendingPhotoBase64 || null,
@@ -1305,8 +1332,10 @@ function renderCalendar() {
         <div class="hc-name">${entry.name}</div>
         <div class="hc-months">📅 ${monthStr}</div>
         ${entry.notes ? `<div class="hc-notes">${entry.notes}</div>` : ''}
+        ${entry.url ? `<a class="hc-url" href="${entry.url}" target="_blank" rel="noopener">🔗 More info</a>` : ''}
       </div>
       <div class="hc-actions">
+        <button class="icon-btn" onclick="exportSingleICS('${entry.id}')" title="Export to calendar">📅</button>
         <button class="icon-btn" onclick="editCalEntry('${entry.id}')" title="Edit">✏️</button>
         <button class="icon-btn del" onclick="deleteCalEntry('${entry.id}')" title="Delete">🗑</button>
       </div>
@@ -1335,6 +1364,7 @@ function openCalModal(entryId = null) {
   document.getElementById('cal-modal-title').textContent = entry ? 'Edit Entry' : 'New Harvest Entry';
   document.getElementById('cm-name').value = entry ? entry.name : '';
   document.getElementById('cm-notes').value = entry ? entry.notes || '' : '';
+  document.getElementById('cm-url').value = entry ? entry.url || '' : '';
   selectedCalType = entry ? entry.type : 'mushroom';
   buildTypeGrid('cm-type-grid', selectedCalType, v => { selectedCalType = v; });
   buildMonthCheckboxes();
@@ -1380,6 +1410,8 @@ function saveCalEntry() {
   const name = document.getElementById('cm-name').value.trim();
   if (!name) { toast('Please enter a name'); return; }
   const months = Array.from(document.querySelectorAll('#cm-months input:checked')).map(c => parseInt(c.value));
+  const url = document.getElementById('cm-url').value.trim();
+  const notes = document.getElementById('cm-notes').value.trim();
 
   if (editCalId) {
     const entry = state.calendar.find(e => e.id === editCalId);
@@ -1387,7 +1419,8 @@ function saveCalEntry() {
       entry.name = name;
       entry.type = selectedCalType;
       entry.months = months;
-      entry.notes = document.getElementById('cm-notes').value.trim();
+      entry.notes = notes;
+      entry.url = url;
     }
   } else {
     state.calendar.push({
@@ -1395,7 +1428,9 @@ function saveCalEntry() {
       name,
       type: selectedCalType,
       months,
-      notes: document.getElementById('cm-notes').value.trim(),
+      notes,
+      url,
+      author: state.username || '',
       created: new Date().toISOString()
     });
   }
@@ -1406,6 +1441,33 @@ function saveCalEntry() {
 }
 
 // ── ICS EXPORT ──
+function exportSingleICS(id) {
+  const entry = state.calendar.find(e => e.id === id);
+  if (!entry) return;
+  if (!entry.months || entry.months.length === 0) { toast('No months set for this entry'); return; }
+  const year = new Date().getFullYear();
+  let ics = `BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//WildHarvest//EN\r\nCALNAME:Wild Harvest Schedule\r\n`;
+  entry.months.forEach(m => {
+    const start = `${year}${String(m+1).padStart(2,'0')}01`;
+    const lastDay = new Date(year, m+1, 0).getDate();
+    const end = `${year}${String(m+1).padStart(2,'0')}${String(lastDay).padStart(2,'0')}`;
+    ics += `BEGIN:VEVENT\r\n`;
+    ics += `UID:${entry.id}-${m}@wildharvest\r\n`;
+    ics += `DTSTART;VALUE=DATE:${start}\r\n`;
+    ics += `DTEND;VALUE=DATE:${end}\r\n`;
+    ics += `SUMMARY:🌿 ${entry.name} season\r\n`;
+    ics += `DESCRIPTION:${entry.notes || ''}${entry.url ? ' ' + entry.url : ''}\r\n`;
+    ics += `END:VEVENT\r\n`;
+  });
+  ics += `END:VCALENDAR`;
+  const blob = new Blob([ics], { type: 'text/calendar' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `${entry.name.replace(/\s+/g,'-').toLowerCase()}.ics`;
+  a.click();
+  toast(`📅 ${entry.name} exported`);
+}
+
 function exportICS() {
   if (state.calendar.length === 0) { toast('No entries to export'); return; }
   const year = new Date().getFullYear();
@@ -1475,7 +1537,6 @@ function toast(msg, dur = 2500) {
 function renderFeedback() {
   const container = document.getElementById('fb-entries');
   container.innerHTML = '';
-
   const all = [...state.feedback].sort((a, b) => new Date(b.created) - new Date(a.created));
   const active = all.filter(e => !e.completed);
   const done = all.filter(e => e.completed);
@@ -1499,7 +1560,9 @@ function renderFeedback() {
         <div class="fb-entry-meta">📝 ${date}${entry.author ? ' · ' + entry.author : ''}${entry.completed && entry.completedBy ? ' · ✓ ' + entry.completedBy : ''}</div>
       </div>
       <div class="fb-entry-actions" style="display:flex;flex-direction:column;gap:6px;">
-        ${!entry.completed ? `<button class="icon-btn" onclick="completeFeedback('${entry.id}')" title="Mark complete">✅</button>` : `<button class="icon-btn" onclick="uncompleteFeedback('${entry.id}')" title="Reopen">↩️</button>`}
+        ${!entry.completed
+          ? `<button class="icon-btn" onclick="completeFeedback('${entry.id}')" title="Mark complete">✅</button>`
+          : `<button class="icon-btn" onclick="uncompleteFeedback('${entry.id}')" title="Reopen">↩️</button>`}
         <button class="icon-btn del" onclick="deleteFeedback('${entry.id}')" title="Delete">🗑</button>
       </div>
     `;
@@ -1511,7 +1574,7 @@ function renderFeedback() {
   if (done.length > 0) {
     const header = document.createElement('div');
     header.className = 'fb-completed-header';
-    header.innerHTML = `✓ Completed (${done.length})`;
+    header.textContent = `✓ Completed (${done.length})`;
     container.appendChild(header);
     done.forEach(makeEntry);
   }
@@ -1526,6 +1589,9 @@ function completeFeedback(id) {
   }
   save();
   renderFeedback();
+  // Immediately push so the other phone sees it on next sync
+  const { user, repo, token } = state.github;
+  if (user && repo && token) ghPutFile('feedback.json', state.feedback).catch(() => {});
   toast('✅ Marked complete');
 }
 
@@ -1538,6 +1604,8 @@ function uncompleteFeedback(id) {
   }
   save();
   renderFeedback();
+  const { user, repo, token } = state.github;
+  if (user && repo && token) ghPutFile('feedback.json', state.feedback).catch(() => {});
   toast('↩️ Reopened');
 }
 
