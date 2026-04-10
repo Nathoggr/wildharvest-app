@@ -282,8 +282,6 @@ body {
 .hc-name { font-weight: 700; font-size: 0.95rem; color: var(--ink); }
 .hc-months { font-size: 0.74rem; color: var(--bark-light); margin-top: 1px; }
 .hc-notes { font-size: 0.78rem; color: #555; margin-top: 4px; line-height: 1.4; }
-.hc-url { display: inline-block; font-size: 0.75rem; color: var(--forest); margin-top: 5px; text-decoration: underline; }
-.hc-author { font-size: 0.72rem; color: var(--bark-light); font-weight: 400; margin-left: 4px; }
 .hc-actions { display: flex; flex-direction: column; gap: 6px; }
 
 .icon-btn {
@@ -345,23 +343,6 @@ body {
   font-style: italic;
   font-size: 0.88rem;
 }
-
-.cal-search-wrap {
-  margin-bottom: 12px;
-}
-.cal-search {
-  width: 100%;
-  padding: 10px 14px;
-  border: 2px solid var(--parchment);
-  border-radius: 20px;
-  font-family: 'Lato', sans-serif;
-  font-size: 0.88rem;
-  color: var(--ink);
-  background: white;
-  transition: border-color 0.2s;
-  -webkit-appearance: none;
-}
-.cal-search:focus { outline: none; border-color: var(--forest); }
 
 /* ── SETTINGS PANEL ── */
 #settings-panel { padding: 16px; }
@@ -625,7 +606,6 @@ body {
 .pin-popup .pp-notes { font-size: 0.82rem; color: #444; margin-bottom: 6px; line-height: 1.4; }
 .pin-popup img { width: 100%; border-radius: 6px; margin-bottom: 6px; }
 .pin-popup .pp-del { font-size: 0.75rem; color: var(--berry); cursor: pointer; text-decoration: underline; }
-.pin-popup .pp-meta { font-size: 0.72rem; color: var(--bark-light); margin-bottom: 5px; }
 
 /* toast */
 #toast {
@@ -729,6 +709,28 @@ body {
   gap: 10px;
 }
 
+.fb-entry.completed {
+  border-left-color: var(--moss);
+  opacity: 0.75;
+}
+
+.fb-entry.completed .fb-entry-text {
+  text-decoration: line-through;
+  color: var(--bark-light);
+}
+
+.fb-completed-header {
+  font-family: 'Playfair Display', serif;
+  font-size: 0.9rem;
+  color: var(--bark-light);
+  margin: 18px 0 10px;
+  padding-top: 14px;
+  border-top: 1px solid var(--parchment);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .fb-entry-body { flex: 1; min-width: 0; }
 
 .fb-entry-text {
@@ -799,26 +801,16 @@ body {
   <!-- CALENDAR PANEL -->
   <div class="panel" id="calendar-panel">
     <div class="month-strip" id="month-strip"></div>
-    <div class="cal-search-wrap">
-      <input class="cal-search" id="cal-search" type="search" placeholder="🔍 Search species, notes…" oninput="renderCalendar()">
-    </div>
     <div class="cal-section-title">
       <span id="cal-month-title">All entries</span>
     </div>
     <div id="cal-entries"></div>
     <button class="add-cal-btn" onclick="openCalModal()">＋ Add Harvest Entry</button>
-    <button class="export-btn" onclick="exportICS()">📅 Export All to Calendar (.ics)</button>
+    <button class="export-btn" onclick="exportICS()">📅 Export to Google Calendar (.ics)</button>
   </div>
 
   <!-- SETTINGS PANEL -->
   <div class="panel" id="settings-panel">
-    <div class="settings-section">
-      <h3>👤 Your Name</h3>
-      <p>Shown on your pins, calendar entries, and notes so you can tell who added what.</p>
-      <div class="field-label">Display Name</div>
-      <input class="field-input" id="s-username" type="text" placeholder="e.g. Nat" autocapitalize="words">
-      <button class="save-btn" onclick="saveUsername()">Save Name</button>
-    </div>
     <div class="settings-section">
       <h3>🐙 GitHub Sync</h3>
       <p>Store your pins and calendar in a private GitHub repo. Create a repo (e.g. <strong>forage-data</strong>), then generate a Personal Access Token with <strong>repo</strong> scope at github.com/settings/tokens.</p>
@@ -875,8 +867,6 @@ body {
     <div class="type-select-grid" id="pm-type-grid"></div>
     <div class="field-label">Notes</div>
     <input class="field-input" id="pm-notes" type="text" placeholder="e.g. South-facing slope, near creek">
-    <div class="field-label">Observed Date</div>
-    <input class="field-input" id="pm-date" type="date">
     <div class="field-label">Photo (optional)</div>
     <label class="file-upload-area">
       <input type="file" accept="image/*" id="pm-photo-input" onchange="handlePhoto(this)">
@@ -903,8 +893,6 @@ body {
     <div class="month-checkboxes" id="cm-months"></div>
     <div class="field-label">Notes</div>
     <input class="field-input" id="cm-notes" type="text" placeholder="e.g. Look near streams after snowmelt">
-    <div class="field-label">More Info URL (optional)</div>
-    <input class="field-input" id="cm-url" type="url" placeholder="e.g. https://wildfooduk.com/…">
     <div class="modal-actions" id="cal-modal-actions">
       <button class="btn-secondary" onclick="closeCalModal()">Cancel</button>
       <button class="btn-primary" onclick="saveCalEntry()">Save</button>
@@ -932,7 +920,6 @@ let state = {
   feedback: [],
   github: { user: '', repo: '', token: '' },
   home: { lat: 49.4800, lng: -96.4500 },
-  username: '',
   fileSHAs: {}
 };
 
@@ -947,7 +934,6 @@ function save() {
   const { github, home } = state;
   localStorage.setItem('wh_github', JSON.stringify(github));
   localStorage.setItem('wh_home', JSON.stringify(home));
-  localStorage.setItem('wh_username', state.username || '');
   localStorage.setItem('wh_pins', JSON.stringify(state.pins));
   localStorage.setItem('wh_calendar', JSON.stringify(state.calendar));
   localStorage.setItem('wh_feedback', JSON.stringify(state.feedback));
@@ -957,7 +943,6 @@ function save() {
 function load() {
   try { state.github = JSON.parse(localStorage.getItem('wh_github')) || state.github; } catch(e){}
   try { state.home = JSON.parse(localStorage.getItem('wh_home')) || state.home; } catch(e){}
-  try { state.username = localStorage.getItem('wh_username') || ''; } catch(e){}
   try { state.pins = JSON.parse(localStorage.getItem('wh_pins')) || []; } catch(e){}
   try { state.calendar = JSON.parse(localStorage.getItem('wh_calendar')) || []; } catch(e){}
   try { state.feedback = JSON.parse(localStorage.getItem('wh_feedback')) || []; } catch(e){}
@@ -1145,16 +1130,12 @@ function renderPins() {
     const typeObj = TYPES.find(t => t.key === pin.type) || TYPES[0];
     let imgHtml = '';
     if (pin.photo) imgHtml = `<img src="${pin.photo}" style="width:100%;border-radius:6px;margin-bottom:6px;">`;
-    const dateStr = pin.observedDate ? `📆 ${pin.observedDate}` : '';
-    const authorStr = pin.author ? `· ${pin.author}` : '';
-    const metaStr = (dateStr || authorStr) ? `<div class="pp-meta">${dateStr} ${authorStr}</div>` : '';
     m.bindPopup(`
       <div class="pin-popup">
         ${imgHtml}
         <h4>${pin.name}</h4>
         <div class="pp-type">${typeObj.label}</div>
         ${pin.notes ? `<div class="pp-notes">${pin.notes}</div>` : ''}
-        ${metaStr}
         <span class="pp-del" onclick="deletePin('${pin.id}')">🗑 Delete pin</span>
       </div>
     `);
@@ -1192,7 +1173,6 @@ function openPinModal(pinId = null) {
   document.getElementById('pin-modal-title').textContent = pin ? 'Edit Pin' : 'New Pin';
   document.getElementById('pm-name').value = pin ? pin.name : '';
   document.getElementById('pm-notes').value = pin ? pin.notes : '';
-  document.getElementById('pm-date').value = pin ? (pin.observedDate || '') : new Date().toISOString().split('T')[0];
   selectedPinType = pin ? pin.type : 'mushroom';
   buildTypeGrid('pm-type-grid', selectedPinType, v => { selectedPinType = v; });
   const preview = document.getElementById('pm-photo-preview');
@@ -1241,7 +1221,6 @@ function savePin() {
       pin.name = name;
       pin.type = selectedPinType;
       pin.notes = document.getElementById('pm-notes').value.trim();
-      pin.observedDate = document.getElementById('pm-date').value || '';
       if (pendingPhotoBase64) pin.photo = pendingPhotoBase64;
     }
   } else {
@@ -1251,8 +1230,6 @@ function savePin() {
       name,
       type: selectedPinType,
       notes: document.getElementById('pm-notes').value.trim(),
-      observedDate: document.getElementById('pm-date').value || '',
-      author: state.username || '',
       lat: pendingLatLng.lat,
       lng: pendingLatLng.lng,
       photo: pendingPhotoBase64 || null,
@@ -1300,7 +1277,6 @@ function renderCalendar() {
   const container = document.getElementById('cal-entries');
   container.innerHTML = '';
   const title = document.getElementById('cal-month-title');
-  const query = (document.getElementById('cal-search')?.value || '').toLowerCase().trim();
 
   let entries = state.calendar;
   if (calSelectedMonth !== null) {
@@ -1310,17 +1286,8 @@ function renderCalendar() {
     title.textContent = 'All entries';
   }
 
-  if (query) {
-    entries = entries.filter(e =>
-      e.name.toLowerCase().includes(query) ||
-      (e.notes && e.notes.toLowerCase().includes(query))
-    );
-  }
-
   if (entries.length === 0) {
-    container.innerHTML = query
-      ? `<div class="empty-state">No entries matching "${query}"</div>`
-      : '<div class="empty-state">Nothing here yet — add your first harvest entry!</div>';
+    container.innerHTML = '<div class="empty-state">Nothing here yet — add your first harvest entry!</div>';
     return;
   }
 
@@ -1329,23 +1296,17 @@ function renderCalendar() {
     const monthStr = entry.months && entry.months.length > 0
       ? entry.months.map(m => MONTHS[m]).join(', ')
       : 'No months set';
-    const urlHtml = entry.url
-      ? `<a class="hc-url" href="${entry.url}" target="_blank" rel="noopener">🔗 More info</a>`
-      : '';
-    const authorHtml = entry.author ? `<span class="hc-author">— ${entry.author}</span>` : '';
 
     const card = document.createElement('div');
     card.className = `harvest-card type-${entry.type}`;
     card.innerHTML = `
       <div class="hc-icon">${typeObj.label.split(' ')[0]}</div>
       <div class="hc-body">
-        <div class="hc-name">${entry.name} ${authorHtml}</div>
+        <div class="hc-name">${entry.name}</div>
         <div class="hc-months">📅 ${monthStr}</div>
         ${entry.notes ? `<div class="hc-notes">${entry.notes}</div>` : ''}
-        ${urlHtml}
       </div>
       <div class="hc-actions">
-        <button class="icon-btn" onclick="exportSingleICS('${entry.id}')" title="Export to calendar">📅</button>
         <button class="icon-btn" onclick="editCalEntry('${entry.id}')" title="Edit">✏️</button>
         <button class="icon-btn del" onclick="deleteCalEntry('${entry.id}')" title="Delete">🗑</button>
       </div>
@@ -1374,7 +1335,6 @@ function openCalModal(entryId = null) {
   document.getElementById('cal-modal-title').textContent = entry ? 'Edit Entry' : 'New Harvest Entry';
   document.getElementById('cm-name').value = entry ? entry.name : '';
   document.getElementById('cm-notes').value = entry ? entry.notes || '' : '';
-  document.getElementById('cm-url').value = entry ? entry.url || '' : '';
   selectedCalType = entry ? entry.type : 'mushroom';
   buildTypeGrid('cm-type-grid', selectedCalType, v => { selectedCalType = v; });
   buildMonthCheckboxes();
@@ -1384,6 +1344,7 @@ function openCalModal(entryId = null) {
       if (cb) cb.checked = true;
     });
   }
+  // Show delete button if editing
   const actions = document.getElementById('cal-modal-actions');
   if (entry) {
     actions.innerHTML = `
@@ -1419,8 +1380,6 @@ function saveCalEntry() {
   const name = document.getElementById('cm-name').value.trim();
   if (!name) { toast('Please enter a name'); return; }
   const months = Array.from(document.querySelectorAll('#cm-months input:checked')).map(c => parseInt(c.value));
-  const url = document.getElementById('cm-url').value.trim();
-  const notes = document.getElementById('cm-notes').value.trim();
 
   if (editCalId) {
     const entry = state.calendar.find(e => e.id === editCalId);
@@ -1428,8 +1387,7 @@ function saveCalEntry() {
       entry.name = name;
       entry.type = selectedCalType;
       entry.months = months;
-      entry.notes = notes;
-      entry.url = url;
+      entry.notes = document.getElementById('cm-notes').value.trim();
     }
   } else {
     state.calendar.push({
@@ -1437,9 +1395,7 @@ function saveCalEntry() {
       name,
       type: selectedCalType,
       months,
-      notes,
-      url,
-      author: state.username || '',
+      notes: document.getElementById('cm-notes').value.trim(),
       created: new Date().toISOString()
     });
   }
@@ -1450,33 +1406,6 @@ function saveCalEntry() {
 }
 
 // ── ICS EXPORT ──
-function exportSingleICS(id) {
-  const entry = state.calendar.find(e => e.id === id);
-  if (!entry) return;
-  if (!entry.months || entry.months.length === 0) { toast('No months set for this entry'); return; }
-  const year = new Date().getFullYear();
-  let ics = `BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//WildHarvest//EN\r\nCALNAME:Wild Harvest Schedule\r\n`;
-  entry.months.forEach(m => {
-    const start = `${year}${String(m+1).padStart(2,'0')}01`;
-    const lastDay = new Date(year, m+1, 0).getDate();
-    const end = `${year}${String(m+1).padStart(2,'0')}${String(lastDay).padStart(2,'0')}`;
-    ics += `BEGIN:VEVENT\r\n`;
-    ics += `UID:${entry.id}-${m}@wildharvest\r\n`;
-    ics += `DTSTART;VALUE=DATE:${start}\r\n`;
-    ics += `DTEND;VALUE=DATE:${end}\r\n`;
-    ics += `SUMMARY:🌿 ${entry.name} season\r\n`;
-    ics += `DESCRIPTION:${entry.notes || ''}${entry.url ? ' ' + entry.url : ''}\r\n`;
-    ics += `END:VEVENT\r\n`;
-  });
-  ics += `END:VCALENDAR`;
-  const blob = new Blob([ics], { type: 'text/calendar' });
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = `${entry.name.replace(/\s+/g,'-').toLowerCase()}.ics`;
-  a.click();
-  toast(`📅 ${entry.name} exported`);
-}
-
 function exportICS() {
   if (state.calendar.length === 0) { toast('No entries to export'); return; }
   const year = new Date().getFullYear();
@@ -1506,12 +1435,6 @@ function exportICS() {
 }
 
 // ── SETTINGS ──
-function saveUsername() {
-  state.username = document.getElementById('s-username').value.trim();
-  save();
-  toast('✓ Name saved');
-}
-
 function saveHome() {
   state.home.lat = parseFloat(document.getElementById('home-lat').value) || 49.4800;
   state.home.lng = parseFloat(document.getElementById('home-lng').value) || -96.4500;
@@ -1521,7 +1444,6 @@ function saveHome() {
 }
 
 function loadSettingsUI() {
-  document.getElementById('s-username').value = state.username || '';
   document.getElementById('gh-user').value = state.github.user || '';
   document.getElementById('gh-repo').value = state.github.repo || '';
   document.getElementById('gh-token').value = state.github.token || '';
@@ -1553,26 +1475,70 @@ function toast(msg, dur = 2500) {
 function renderFeedback() {
   const container = document.getElementById('fb-entries');
   container.innerHTML = '';
-  const entries = [...state.feedback].sort((a, b) => new Date(b.created) - new Date(a.created));
-  if (entries.length === 0) {
+
+  const all = [...state.feedback].sort((a, b) => new Date(b.created) - new Date(a.created));
+  const active = all.filter(e => !e.completed);
+  const done = all.filter(e => e.completed);
+
+  if (active.length === 0 && done.length === 0) {
     container.innerHTML = '<div class="fb-empty">No notes yet — add your first one above!</div>';
     return;
   }
-  entries.forEach(entry => {
+
+  if (active.length === 0) {
+    container.innerHTML = '<div class="fb-empty">All notes completed! 🎉</div>';
+  }
+
+  function makeEntry(entry) {
     const date = new Date(entry.created).toLocaleDateString('en-CA', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' });
     const el = document.createElement('div');
-    el.className = 'fb-entry';
+    el.className = 'fb-entry' + (entry.completed ? ' completed' : '');
     el.innerHTML = `
       <div class="fb-entry-body">
         <div class="fb-entry-text">${entry.text.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div>
-        <div class="fb-entry-meta">📝 ${date}${entry.author ? ' · ' + entry.author : ''}</div>
+        <div class="fb-entry-meta">📝 ${date}${entry.author ? ' · ' + entry.author : ''}${entry.completed && entry.completedBy ? ' · ✓ ' + entry.completedBy : ''}</div>
       </div>
-      <div class="fb-entry-actions">
+      <div class="fb-entry-actions" style="display:flex;flex-direction:column;gap:6px;">
+        ${!entry.completed ? `<button class="icon-btn" onclick="completeFeedback('${entry.id}')" title="Mark complete">✅</button>` : `<button class="icon-btn" onclick="uncompleteFeedback('${entry.id}')" title="Reopen">↩️</button>`}
         <button class="icon-btn del" onclick="deleteFeedback('${entry.id}')" title="Delete">🗑</button>
       </div>
     `;
     container.appendChild(el);
-  });
+  }
+
+  active.forEach(makeEntry);
+
+  if (done.length > 0) {
+    const header = document.createElement('div');
+    header.className = 'fb-completed-header';
+    header.innerHTML = `✓ Completed (${done.length})`;
+    container.appendChild(header);
+    done.forEach(makeEntry);
+  }
+}
+
+function completeFeedback(id) {
+  const entry = state.feedback.find(e => e.id === id);
+  if (entry) {
+    entry.completed = true;
+    entry.completedAt = new Date().toISOString();
+    entry.completedBy = state.username || state.github.user || '';
+  }
+  save();
+  renderFeedback();
+  toast('✅ Marked complete');
+}
+
+function uncompleteFeedback(id) {
+  const entry = state.feedback.find(e => e.id === id);
+  if (entry) {
+    entry.completed = false;
+    delete entry.completedAt;
+    delete entry.completedBy;
+  }
+  save();
+  renderFeedback();
+  toast('↩️ Reopened');
 }
 
 function deleteFeedback(id) {
@@ -1628,17 +1594,37 @@ window.addEventListener('DOMContentLoaded', () => {
   }
   renderCalendar();
   renderFeedback();
-
-  // Auto-sync if GitHub is configured
-  const { user, repo, token } = state.github;
-  if (user && repo && token) {
-    setTimeout(() => syncData(), 1500); // slight delay so map loads first
-  }
 });
 
 // PWA service worker for offline support
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('./sw.js').catch(() => {});
+  const sw = `
+const CACHE = 'wildharvest-v4';
+const ASSETS = [
+  'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css',
+  'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js',
+  'https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,500;0,700;1,500&family=Lato:wght@300;400;700&display=swap'
+];
+self.addEventListener('install', e => {
+  e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS).catch(()=>{})));
+  self.skipWaiting();
+});
+self.addEventListener('activate', e => { e.waitUntil(self.clients.claim()); });
+self.addEventListener('fetch', e => {
+  if (e.request.url.includes('tile.openstreetmap.org')) {
+    e.respondWith(caches.open('map-tiles').then(c =>
+      c.match(e.request).then(r => r || fetch(e.request).then(res => { c.put(e.request, res.clone()); return res; }))
+    ));
+    return;
+  }
+  e.respondWith(
+    caches.match(e.request).then(r => r || fetch(e.request))
+  );
+});
+  `;
+  const blob = new Blob([sw], { type: 'text/javascript' });
+  const swUrl = URL.createObjectURL(blob);
+  navigator.serviceWorker.register(swUrl).catch(() => {});
 }
 </script>
 </body>
