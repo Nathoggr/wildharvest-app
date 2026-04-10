@@ -1510,67 +1510,10 @@ async function submitFeedback() {
   }
 }
 
-// ── SEED DATA ──
-function seedCalendarIfEmpty() {
-  if (state.calendar.length > 0) return;
-  const seeds = [
-    // APRIL
-    { name: 'Manitoba Maple Sap', type: 'other', months: [2,3], notes: 'Tap before leaf-out. Earlier than birch — late Feb into March. Common around Marchand' },
-    { name: 'Birch Sap', type: 'other', months: [3], notes: 'Late April window only — flows briefly at leaf-out. Drink fresh or ferment' },
-    { name: 'Chaga Mushroom', type: 'mushroom', months: [0,1,2,3,10,11], notes: 'Winter is best — harvests when birch is dormant. Black cracked growths on living birch. Leave small ones' },
-    { name: 'Stinging Nettle', type: 'green', months: [3,4], notes: 'Harvest young shoots in April before flowering — wear gloves. Ditches, riverbanks, moist areas' },
-    // MAY
-    { name: 'Morel Mushroom', type: 'mushroom', months: [4], notes: 'Peak mid-May near Marchand. Moist aspen/poplar stands after warm rain, soil ~10°C. Check mixed forest east toward Sandilands. Never eat raw' },
-    { name: 'Fiddleheads (Ostrich Fern)', type: 'green', months: [4], notes: 'Moist areas near streams. Harvest tight coils only — blanch before eating' },
-    { name: 'Wild Asparagus', type: 'green', months: [4,5], notes: 'Scout ditches in fall when feathery — GPS the spots. Harvest shoots in May before they open' },
-    { name: 'Dandelion', type: 'green', months: [4,5,6], notes: 'Leaves best before flowering. Flowers for wine and fritters. Very common everywhere' },
-    { name: 'Lamb\'s Quarters', type: 'green', months: [4,5,6,7], notes: 'Young leaves in May–June are best. Disturbed soil, gardens, roadsides' },
-    { name: 'Spruce Tips', type: 'green', months: [4], notes: 'Harvest bright green new growth in May. Use in tea, syrup, or seasoning' },
-    { name: 'Wild Leeks (Ramps)', type: 'green', months: [4,5], notes: 'Rich moist deciduous forest. Strong garlic-onion smell. Cut leaves above bulb — leave roots' },
-    { name: 'Wintergreen Berry', type: 'berry', months: [3,4], notes: 'Pick overwintered berries before June. Sandy jack pine woods — Sandilands area' },
-    { name: 'Cattail Shoots', type: 'green', months: [3,4,5], notes: 'Young spring shoots and pollen heads. Marshes and pond edges around Marchand area' },
-    // JUNE
-    { name: 'Wild Strawberry', type: 'berry', months: [5,6], notes: 'Sunny clearings and road shoulders. Small but intensely sweet. Peak late June' },
-    { name: 'Wild Rose Petals', type: 'other', months: [5,6], notes: 'Late June into July. Use fresh in salads, syrups, or dry for tea' },
-    { name: 'Red Clover Flowers', type: 'other', months: [5,6,7], notes: 'Open fields and roadsides. Flowers edible fresh or dried for tea' },
-    { name: 'Labrador Tea', type: 'other', months: [5,6,7,8], notes: 'Boggy areas east toward Whiteshell fringe. Aromatic leaves — dry for tea. Don\'t over-steep' },
-    { name: 'Milkweed Shoots & Buds', type: 'green', months: [5,6,7], notes: 'Young shoots in June, flower buds in July, young pods in August. Blanch all parts before eating' },
-    // JULY
-    { name: 'Saskatoon Berry', type: 'berry', months: [6], notes: 'Peak early–mid July. River valleys, coulees, hedgerows. Very common around SE Manitoba' },
-    { name: 'Wild Raspberry', type: 'berry', months: [6,7], notes: 'Forest clearings, roadsides. Very common around Marchand. Late July into August' },
-    { name: 'Pin Cherry', type: 'berry', months: [6,7], notes: 'Small tart red cherries. Forest edges and disturbed areas. Good for jelly' },
-    { name: 'Wild Blueberry', type: 'berry', months: [6,7], notes: 'Sandy acidic soil in Sandilands Provincial Forest. Peak late July–August. Worth the drive in' },
-    { name: 'Chanterelle', type: 'mushroom', months: [6,7,8], notes: 'Late July after rain in mixed/conifer forest. Golden, funnel-shaped. Check Sandilands area' },
-    { name: 'Fireweed Flowers', type: 'other', months: [6,7], notes: 'Disturbed areas and roadsides. Flowers and young leaves edible. Makes excellent jelly' },
-    { name: 'Wild Mint', type: 'green', months: [5,6,7,8], notes: 'Shorelines and streambanks. Very strong scent makes it easy to identify' },
-    // AUGUST
-    { name: 'Chokecherry', type: 'berry', months: [7], notes: 'Ripe early August — very common in SE Manitoba. Excellent for jelly, syrup, wine' },
-    { name: 'King Bolete (Porcini)', type: 'mushroom', months: [6,7,8,9], notes: 'Fruits after extended wet spells under spruce and pine. Can be abundant after a wet week' },
-    { name: 'Oyster Mushroom', type: 'mushroom', months: [7,8,9], notes: 'On dead/dying poplar and elm. Spring and fall. Easy to identify, no dangerous lookalikes' },
-    { name: 'Hazelnut', type: 'nut', months: [7], notes: 'Ready late August in SE Manitoba. Thickets along forest edges — beat the squirrels!' },
-    { name: 'Wild Grape', type: 'berry', months: [7,8], notes: 'Late August into September. Riverbanks and forest edges. Tart — best for jelly or juice' },
-    { name: 'Rose Hip', type: 'berry', months: [8,9], notes: 'Sweetest after first hard frost. Very high vitamin C. Common along roadsides' },
-    // SEPTEMBER
-    { name: 'Shaggy Mane Mushroom', type: 'mushroom', months: [8], notes: 'After big late-Aug/Sept rains — lawns, parking lots, disturbed soil. Cook immediately, dissolves to ink within hours' },
-    { name: 'Honey Mushroom (Popinki)', type: 'mushroom', months: [8,9], notes: 'Fruits heavily around dead stumps in aspen and oak areas. Well known to local Ukrainian foragers. Cook thoroughly' },
-    { name: 'Giant Puffball', type: 'mushroom', months: [8,9], notes: 'Open areas and forest edges after fall rains. Harvest when pure white inside. Slice to confirm before eating' },
-    { name: 'Highbush Cranberry', type: 'berry', months: [8,9,10], notes: 'Best after first hard frost — less astringent. Riverbanks and moist thickets. Great for jelly' },
-    { name: 'Burdock Root', type: 'root', months: [8,9], notes: 'First-year plants only (no flower stalk). Roadsides and disturbed areas. Peel and cook like parsnip' },
-    // OCTOBER
-    { name: 'Acorn (Bur Oak)', type: 'nut', months: [8,9], notes: 'Bur oak common in SE Manitoba. Must leach tannins in water before eating — change water daily for 2–3 days' },
-    { name: 'Wild Sarsaparilla Root', type: 'root', months: [9], notes: 'Woodland plant. Roots used for tea. Dig in fall after plant dies back' },
-    { name: 'Goldenrod', type: 'other', months: [9,10], notes: 'Dry flower heads for herbal tea. Very common in fields and roadsides' },
-  ];
-  seeds.forEach(s => {
-    state.calendar.push({ id: Date.now().toString() + Math.random(), ...s, created: new Date().toISOString() });
-  });
-  save();
-}
 
 // ── INIT ──
 window.addEventListener('DOMContentLoaded', () => {
   load();
-  seedCalendarIfEmpty();
   loadSettingsUI();
   initMap();
   buildMonthStrip();
