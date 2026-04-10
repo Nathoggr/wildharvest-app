@@ -633,7 +633,107 @@ body {
 }
 .leaflet-popup-content { margin: 12px 14px !important; }
 
-/* scrollbar styling */
+/* ── FEEDBACK PANEL ── */
+#feedback-panel {
+  padding: 16px;
+  background: var(--parchment);
+}
+
+.feedback-header {
+  margin-bottom: 14px;
+}
+
+.feedback-header h2 {
+  font-family: 'Playfair Display', serif;
+  font-size: 1.2rem;
+  color: var(--forest);
+  margin-bottom: 4px;
+}
+
+.feedback-header p {
+  font-size: 0.78rem;
+  color: #666;
+  line-height: 1.5;
+}
+
+.feedback-compose {
+  background: white;
+  border-radius: var(--radius-lg);
+  padding: 14px;
+  margin-bottom: 16px;
+  box-shadow: var(--shadow-sm);
+}
+
+.fb-textarea {
+  width: 100%;
+  border: 2px solid var(--parchment);
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-family: 'Lato', sans-serif;
+  font-size: 0.88rem;
+  color: var(--ink);
+  background: var(--cream);
+  resize: none;
+  margin-bottom: 10px;
+  transition: border-color 0.2s;
+  -webkit-appearance: none;
+  line-height: 1.5;
+}
+.fb-textarea:focus { outline: none; border-color: var(--forest); }
+
+.fb-submit-btn {
+  width: 100%;
+  padding: 12px;
+  background: var(--forest);
+  color: white;
+  border: none;
+  border-radius: var(--radius);
+  font-family: 'Lato', sans-serif;
+  font-size: 0.88rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.fb-submit-btn:active { background: var(--forest-mid); }
+
+.fb-entry {
+  background: white;
+  border-radius: var(--radius);
+  padding: 13px 15px;
+  margin-bottom: 10px;
+  box-shadow: var(--shadow-sm);
+  border-left: 4px solid var(--bark-light);
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.fb-entry-body { flex: 1; min-width: 0; }
+
+.fb-entry-text {
+  font-size: 0.88rem;
+  color: var(--ink);
+  line-height: 1.5;
+  word-break: break-word;
+}
+
+.fb-entry-meta {
+  font-size: 0.7rem;
+  color: var(--bark-light);
+  margin-top: 5px;
+}
+
+.fb-entry-actions { flex-shrink: 0; }
+
+.fb-empty {
+  text-align: center;
+  padding: 30px 20px;
+  color: var(--bark-light);
+  font-style: italic;
+  font-size: 0.88rem;
+}
+
 ::-webkit-scrollbar { width: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--bark-light); border-radius: 2px; }
@@ -658,6 +758,9 @@ body {
   </div>
   <div class="tab" onclick="showPanel('settings')" id="tab-settings">
     <span class="tab-icon">⚙️</span>Setup
+  </div>
+  <div class="tab" onclick="showPanel('feedback')" id="tab-feedback">
+    <span class="tab-icon">💬</span>Notes
   </div>
 </div>
 
@@ -698,7 +801,6 @@ body {
       <button class="save-btn" onclick="saveGitHub()">Save & Test Connection</button>
       <div id="gh-status"></div>
     </div>
-
     <div class="settings-section">
       <h3>📍 Default Map Location</h3>
       <p>Set your home area so the map opens centred on your region.</p>
@@ -708,12 +810,26 @@ body {
       <input class="field-input" id="home-lng" type="number" step="0.0001" placeholder="-96.4500">
       <button class="save-btn" onclick="saveHome()">Save Location</button>
     </div>
-
     <div class="settings-section">
       <h3>ℹ️ About</h3>
       <p>WildHarvest is a private foraging app for two. All data lives in your GitHub repo. Works offline — map tiles are cached after first load. Install to your home screen for the full app experience.</p>
       <p style="margin-top:8px;font-size:0.72rem;color:#999;">v1.0 · Built with Leaflet + OpenStreetMap</p>
     </div>
+  </div>
+
+  <!-- FEEDBACK PANEL -->
+  <div class="panel" id="feedback-panel">
+    <div class="feedback-header">
+      <div class="feedback-header-text">
+        <h2>App Notes</h2>
+        <p>Jot down ideas, bugs, or things to improve. Saved to your GitHub repo and shared between both phones.</p>
+      </div>
+    </div>
+    <div class="feedback-compose">
+      <textarea id="fb-input" class="fb-textarea" placeholder="e.g. Add a filter for mushrooms only on the map…" rows="3"></textarea>
+      <button class="fb-submit-btn" onclick="submitFeedback()">＋ Add Note</button>
+    </div>
+    <div id="fb-entries"></div>
   </div>
 
 </div>
@@ -779,6 +895,7 @@ const TYPES = [
 let state = {
   pins: [],
   calendar: [],
+  feedback: [],
   github: { user: '', repo: '', token: '' },
   home: { lat: 49.4800, lng: -96.4500 },
   fileSHAs: {}
@@ -797,6 +914,7 @@ function save() {
   localStorage.setItem('wh_home', JSON.stringify(home));
   localStorage.setItem('wh_pins', JSON.stringify(state.pins));
   localStorage.setItem('wh_calendar', JSON.stringify(state.calendar));
+  localStorage.setItem('wh_feedback', JSON.stringify(state.feedback));
   localStorage.setItem('wh_shas', JSON.stringify(state.fileSHAs));
 }
 
@@ -805,6 +923,7 @@ function load() {
   try { state.home = JSON.parse(localStorage.getItem('wh_home')) || state.home; } catch(e){}
   try { state.pins = JSON.parse(localStorage.getItem('wh_pins')) || []; } catch(e){}
   try { state.calendar = JSON.parse(localStorage.getItem('wh_calendar')) || []; } catch(e){}
+  try { state.feedback = JSON.parse(localStorage.getItem('wh_feedback')) || []; } catch(e){}
   try { state.fileSHAs = JSON.parse(localStorage.getItem('wh_shas')) || {}; } catch(e){}
 }
 
@@ -855,16 +974,16 @@ async function syncData() {
   btn.classList.add('syncing');
   btn.textContent = '⟳ Syncing…';
   try {
-    const [remotePins, remoteCal] = await Promise.all([
+    const [remotePins, remoteCal, remoteFeedback] = await Promise.all([
       ghGetFile('pins.json'),
-      ghGetFile('calendar.json')
+      ghGetFile('calendar.json'),
+      ghGetFile('feedback.json')
     ]);
 
     // Merge: remote wins for any pin/entry the other device added
     if (remotePins) {
       const localIds = new Set(state.pins.map(p => p.id));
       const remoteIds = new Set(remotePins.map(p => p.id));
-      // keep all remote, add any local-only
       const merged = [...remotePins];
       state.pins.filter(p => !remoteIds.has(p.id)).forEach(p => merged.push(p));
       state.pins = merged;
@@ -876,14 +995,22 @@ async function syncData() {
       state.calendar.filter(e => !remoteIds.has(e.id)).forEach(e => merged.push(e));
       state.calendar = merged;
     }
+    if (remoteFeedback) {
+      const remoteIds = new Set(remoteFeedback.map(e => e.id));
+      const merged = [...remoteFeedback];
+      state.feedback.filter(e => !remoteIds.has(e.id)).forEach(e => merged.push(e));
+      state.feedback = merged;
+    }
 
     // Push merged data back
     await ghPutFile('pins.json', state.pins);
     await ghPutFile('calendar.json', state.calendar);
+    await ghPutFile('feedback.json', state.feedback);
 
     save();
     renderPins();
     renderCalendar();
+    renderFeedback();
     document.getElementById('sync-status').textContent = 'Synced ' + new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
     toast('✓ Synced successfully');
   } catch(e) {
@@ -1322,6 +1449,67 @@ function toast(msg, dur = 2500) {
   setTimeout(() => el.classList.remove('show'), dur);
 }
 
+// ── FEEDBACK ──
+function renderFeedback() {
+  const container = document.getElementById('fb-entries');
+  container.innerHTML = '';
+  const entries = [...state.feedback].sort((a, b) => new Date(b.created) - new Date(a.created));
+  if (entries.length === 0) {
+    container.innerHTML = '<div class="fb-empty">No notes yet — add your first one above!</div>';
+    return;
+  }
+  entries.forEach(entry => {
+    const date = new Date(entry.created).toLocaleDateString('en-CA', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+    const el = document.createElement('div');
+    el.className = 'fb-entry';
+    el.innerHTML = `
+      <div class="fb-entry-body">
+        <div class="fb-entry-text">${entry.text.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div>
+        <div class="fb-entry-meta">📝 ${date}${entry.author ? ' · ' + entry.author : ''}</div>
+      </div>
+      <div class="fb-entry-actions">
+        <button class="icon-btn del" onclick="deleteFeedback('${entry.id}')" title="Delete">🗑</button>
+      </div>
+    `;
+    container.appendChild(el);
+  });
+}
+
+function deleteFeedback(id) {
+  state.feedback = state.feedback.filter(e => e.id !== id);
+  save();
+  renderFeedback();
+  toast('Note deleted');
+}
+
+async function submitFeedback() {
+  const input = document.getElementById('fb-input');
+  const text = input.value.trim();
+  if (!text) { toast('Please write something first'); return; }
+  const entry = {
+    id: Date.now().toString(),
+    text,
+    created: new Date().toISOString(),
+    author: state.github.user || ''
+  };
+  state.feedback.push(entry);
+  save();
+  input.value = '';
+  renderFeedback();
+  // Auto-sync feedback immediately if configured
+  const { user, repo, token } = state.github;
+  if (user && repo && token) {
+    try {
+      await ghPutFile('feedback.json', state.feedback);
+      toast('💬 Note saved & synced');
+    } catch(e) {
+      toast('💬 Note saved locally — sync to share');
+    }
+  } else {
+    toast('💬 Note saved locally');
+  }
+}
+
 // ── SEED DATA ──
 function seedCalendarIfEmpty() {
   if (state.calendar.length > 0) return;
@@ -1382,7 +1570,7 @@ function seedCalendarIfEmpty() {
 // ── INIT ──
 window.addEventListener('DOMContentLoaded', () => {
   load();
-  //seedCalendarIfEmpty();
+  seedCalendarIfEmpty();
   loadSettingsUI();
   initMap();
   buildMonthStrip();
@@ -1396,12 +1584,13 @@ window.addEventListener('DOMContentLoaded', () => {
     calSelectedMonth = now;
   }
   renderCalendar();
+  renderFeedback();
 });
 
 // PWA service worker for offline support
 if ('serviceWorker' in navigator) {
   const sw = `
-const CACHE = 'wildharvest-v3';
+const CACHE = 'wildharvest-v4';
 const ASSETS = [
   'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css',
   'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js',
